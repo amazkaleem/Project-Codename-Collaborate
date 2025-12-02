@@ -1,5 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
+import cors from "cors";
 import { sql } from "./config/db.js";
 import { validate as isUuid } from "uuid";
 import transactionRoutes from "./routes/transactionRoutes.js";
@@ -16,7 +17,7 @@ const origin = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 app.use(
   cors({
-    origin: {origin}, // In production, replace with your specific domains
+    origin: { origin }, // In production, replace with your specific domains
     methods: ["GET", "POST", "PATCH", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
@@ -24,7 +25,7 @@ app.use(
 
 app.use(rateLimiter);
 app.use(express.json());
-// app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true }));
 
 //Server 'Health Check'
 app.get("/api/health", (req, res) => {
