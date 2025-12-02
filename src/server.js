@@ -10,11 +10,21 @@ dotenv.config();
 const app = express();
 
 //MiddleWare
+
+const PORT = process.env.PORT || 8081;
+const origin = process.env.EXPO_PUBLIC_API_BASE_URL;
+
+app.use(
+  cors({
+    origin: {origin}, // In production, replace with your specific domains
+    methods: ["GET", "POST", "PATCH", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
 app.use(rateLimiter);
 app.use(express.json());
 // app.use(express.urlencoded({ extended: true }));
-
-const PORT = process.env.PORT || 8081;
 
 //Server 'Health Check'
 app.get("/api/health", (req, res) => {
