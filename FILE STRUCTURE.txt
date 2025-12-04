@@ -1,0 +1,30 @@
+mobile/
+├── app/
+│   ├── (auth)/
+│   │   ├── _layout.jsx
+│   │   ├── sign-in.jsx
+│   │   └── sign-up.jsx
+│   ├── (root)/
+│   │   ├── (tabs)/
+│   │   │   ├── _layout.jsx
+│   │   │   ├── home.jsx
+│   │   │   ├── explore.jsx
+│   │   │   └── profile.jsx
+│   │   ├── board/
+│   │   │   └── [id]/
+│   │   │       ├── index.jsx (Board detail with drag & drop)
+│   │   │       └── members.jsx (Team members screen)
+│   │   ├── _layout.jsx
+│   │   └── index.jsx
+│   └── _layout.jsx
+├── components/
+│   ├── SafeScreen.jsx
+│   └── SignOutButton.jsx
+├── services/
+│   └── api.js (API service for backend communication)
+├── utils/
+│   └── helpers.js (Helper functions)
+├── constants/
+│   └── colors.js
+├── package.json
+└── .env
