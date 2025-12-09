@@ -6,8 +6,10 @@ export async function deleteUser(req, res) {
   try {
     const { deleteId } = req.params;
 
+    const thisId = deleteId.slice(5);
+
     // Validate UUID format
-    if (!isUuid(deleteId)) {
+    if (!isUuid(thisId)) {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
 
@@ -15,13 +17,13 @@ export async function deleteUser(req, res) {
     const memberBoards = await sql`
       SELECT DISTINCT board_id
       FROM board_members
-      WHERE user_id = ${deleteId}
+      WHERE user_id = ${thisId}
     `;
 
     // Delete the user (this will also remove board_members rows if FK has ON DELETE CASCADE)
     const afterDelete = await sql`
         DELETE FROM users 
-        WHERE user_id = ${deleteId} 
+        WHERE user_id = ${thisId} 
         RETURNING user_id, username, email
         `;
 
@@ -131,7 +133,9 @@ export async function removeBoardMember(req, res) {
   try {
     const { boardId, userId } = req.params;
 
-    if (!isUuid(boardId) || !isUuid(userId)) {
+    const thisId = userId.slice(5);
+
+    if (!isUuid(boardId) || !isUuid(thisId)) {
       return res
         .status(400)
         .json({ message: "Invalid boardId or userId format" });
@@ -143,7 +147,7 @@ export async function removeBoardMember(req, res) {
     // delete the membership
     const deleted = await sql`
       DELETE FROM board_members
-      WHERE board_id = ${boardId} AND user_id = ${userId}
+      WHERE board_id = ${boardId} AND user_id = ${thisId}
       RETURNING *
     `;
 

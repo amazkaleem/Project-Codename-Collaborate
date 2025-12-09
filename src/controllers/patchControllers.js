@@ -7,8 +7,12 @@ export async function patchUserByUserId(req, res) {
     const { userId } = req.params;
     const { username, full_name, avatar_url } = req.body;
 
+    //Clerk validates user under the id "user_UUID" but the neon database accepts as "UUID" causing conflict issues in the 
+    //API request, Used the slice() and trim() method on the userId. Let's see..
+    const thisId = userId.trim().slice(5);
+
     // Validate UUID format
-    if (!isUuid(userId)) {
+    if (!isUuid(thisId)) {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
 
@@ -48,7 +52,7 @@ export async function patchUserByUserId(req, res) {
 
     // ensure user exists
     const existing =
-      await sql`SELECT user_id FROM users WHERE user_id = ${userId}`;
+      await sql`SELECT user_id FROM users WHERE user_id = ${thisId}`;
     if (!existing.length) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -59,7 +63,7 @@ export async function patchUserByUserId(req, res) {
         await sql`
           UPDATE users
           SET username = ${username}
-          WHERE user_id = ${userId}
+          WHERE user_id = ${thisId}
         `;
       }
 
@@ -67,7 +71,7 @@ export async function patchUserByUserId(req, res) {
         await sql`
           UPDATE users
           SET full_name = ${full_name}
-          WHERE user_id = ${userId}
+          WHERE user_id = ${thisId}
         `;
       }
 
@@ -75,7 +79,7 @@ export async function patchUserByUserId(req, res) {
         await sql`
           UPDATE users
           SET avatar_url = ${avatar_url}
-          WHERE user_id = ${userId}
+          WHERE user_id = ${thisId}
         `;
       }
     } catch (err) {
@@ -91,7 +95,7 @@ export async function patchUserByUserId(req, res) {
     const [updatedUser] = await sql`
       SELECT user_id, username, email, full_name, avatar_url, created_at, last_login, is_active
       FROM users
-      WHERE user_id = ${userId}
+      WHERE user_id = ${thisId}
     `;
 
     res.status(200).json(updatedUser);

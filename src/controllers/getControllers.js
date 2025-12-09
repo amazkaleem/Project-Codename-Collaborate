@@ -6,8 +6,10 @@ export async function getBoardsByUserId(req, res) {
   try {
     const { userId } = req.params;
 
+    const thisId = userId.slice(5);
+
     // Validate UUID early to avoid accidental route collisions and bogus queries
-    if (!isUuid(userId)) {
+    if (!isUuid(thisId)) {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
 
@@ -16,7 +18,7 @@ export async function getBoardsByUserId(req, res) {
       SELECT DISTINCT b.board_id, b.board_name, b.created_by, b.member_count, b.task_count, b.updated_at
       FROM boards b
       JOIN board_members bm ON b.board_id = bm.board_id
-      WHERE bm.user_id = ${userId}
+      WHERE bm.user_id = ${thisId}
       ORDER BY b.updated_at DESC
     `;
 
@@ -66,15 +68,17 @@ export async function getTasksByUserId(req, res) {
     */
     const { userId } = req.params;
 
+    const thisId = userId.slice(5);
+
     // Validate UUID format
-    if (!isUuid(userId)) {
+    if (!isUuid(thisId)) {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
 
     // Using parameterized query
     const tasks = await sql`
       SELECT * FROM tasks 
-      WHERE assigned_to = ${userId}
+      WHERE assigned_to = ${thisId}
       ORDER BY due_date ASC, created_at DESC
     `;
 
