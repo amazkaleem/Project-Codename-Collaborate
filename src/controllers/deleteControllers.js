@@ -4,10 +4,10 @@ import { validate as isUuid } from "uuid";
 //Deleting a user. Done by the user himself/herself
 export async function deleteUser(req, res) {
   try {
-    const { deleteId } = req.params;
+    const { userId } = req.params;
 
     // Validate UUID format
-    if (!isUuid(deleteId)) {
+    if (!isUuid(userId)) {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
 
@@ -15,13 +15,13 @@ export async function deleteUser(req, res) {
     const memberBoards = await sql`
       SELECT DISTINCT board_id
       FROM board_members
-      WHERE user_id = ${deleteId}
+      WHERE user_id = ${userId}
     `;
 
     // Delete the user (this will also remove board_members rows if FK has ON DELETE CASCADE)
     const afterDelete = await sql`
         DELETE FROM users 
-        WHERE user_id = ${deleteId} 
+        WHERE user_id = ${userId} 
         RETURNING user_id, username, email
         `;
 
