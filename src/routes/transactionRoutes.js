@@ -27,17 +27,17 @@ import {
 } from "../controllers/postControllers.js";
 
 // Import the middleware
-import cleanClerkIdMiddleware from './middleware/cleanClerkIdMiddleware.js';
+import cleanClerkIdMiddleware from "../middleware/cleanClerkIdMiddleware.js";
 
 // ------------------------------------------------------------------
 // Helper Middleware to target only routes that need cleaning
 // ------------------------------------------------------------------
 const cleanUserId = (req, res, next) => {
-    // Check if the parameter name is 'userId' and call the main cleaner
-    if (req.params.userId) {
-        return cleanClerkIdMiddleware(req, res, next);
-    }
-    next();
+  // Check if the parameter name is 'userId' and call the main cleaner
+  if (req.params.userId) {
+    return cleanClerkIdMiddleware(req, res, next);
+  }
+  next();
 };
 
 const router = express.Router();
@@ -57,7 +57,11 @@ router.post("/boards/:boardId/members", addBoardMember);
 router.delete("/users/:userId", cleanClerkIdMiddleware, deleteUser);
 router.delete("/boards/:deleteId", deleteBoard);
 router.delete("/tasks/:deleteId", deleteTask);
-router.delete("/boards/:boardId/members/:userId", cleanClerkIdMiddleware, removeBoardMember);
+router.delete(
+  "/boards/:boardId/members/:userId",
+  cleanClerkIdMiddleware,
+  removeBoardMember
+);
 
 // PATCH routes
 router.patch("/users/:userId", cleanClerkIdMiddleware, patchUserByUserId);
