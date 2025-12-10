@@ -5,6 +5,7 @@ import { sql } from "./config/db.js";
 import { validate as isUuid } from "uuid";
 import transactionRoutes from "./routes/transactionRoutes.js";
 import rateLimiter from "./middleware/rateLimiter.js";
+import cleanClerkIdMiddleware from "./middleware/cleanClerkIdMiddleware.js";
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use(
   })
 );
 
+app.use(cleanClerkIdMiddleware);
 app.use(rateLimiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

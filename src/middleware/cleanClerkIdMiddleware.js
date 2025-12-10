@@ -1,41 +1,42 @@
-//this is a custom middleware designed to remove the "user_" from the user_id specified by Clerk 
+//this is a custom middleware designed to remove the "user_" from the user_id specified by Clerk
 //AND to validate this Clerk assigned Id to be a valid V4 UUID that NEON and the backend accepts
 
 // cleanClerkIdMiddleware.js (New file or integrated at the top of your router file)
 
 const cleanClerkIdMiddleware = (req, res, next) => {
+  const userId = req.params.userId;
+  if (!userId) return next();
 
-    // Check if a userId parameter exists in the route
-    const userId = req.params.userId;
+  const CLERK_PREFIX = "user_";
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const hex32Regex = /^[0-9a-fA-F]{32}$/;
 
-    // The UUID validation regex (checks for V1-V5 and standard variant)
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    const CLERK_PREFIX = "user_";
-    
-  if (userId && userId.startsWith(CLERK_PREFIX)) {
-    const rawUuid = userId.slice(CLERK_PREFIX.length); // e.g., 'd6eb621f-...'
+  if (userId.startsWith(CLERK_PREFIX)) {
+    const raw = userId.slice(CLERK_PREFIX.length); // might be dashed or compact hex
 
-    // IMPORTANT: Verify that the sliced part is actually a valid UUID
-    if (uuidRegex.test(rawUuid)) {
-      // 1. Overwrite the original parameter with the cleaned UUID
-      req.params.userId = rawUuid;
+    // If clerk provides 32-hex (no dashes), convert to dashed UUID deterministically
+    let candidateUuid = raw;
+    if (hex32Regex.test(raw)) {
+      const hex = raw.toLowerCase();
+      candidateUuid = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(
+        13,
+        16
+      )}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+    }
 
-      // 2. We can also attach it to the request object for controllers to use
-      // req.cleanUserId = rawUuid; 
-
-      console.log(`✅ Converted Clerk ID: ${userId} -> ${rawUuid}`);
-      return next(); // Continue to the controller
+    if (uuidRegex.test(candidateUuid)) {
+      req.params.userId = candidateUuid;
+      console.log(`✅ Converted Clerk ID: ${userId} -> ${candidateUuid}`);
+      return next();
     } else {
-      // If the prefix exists but the rest is not a valid UUID (malformed or invalid)
-      console.warn(`⚠️ Invalid UUID format detected after stripping prefix in: ${userId}`);
-      // In a real app, you might stop execution here to prevent errors:
-      // return res.status(400).json({ error: "Invalid User ID format." });
-      return next(); // For now, pass the original ID just in case the controller handles it
+      console.warn(`⚠️ Invalid UUID after conversion for: ${userId}`);
+      return res.status(400).json({ error: "Invalid User ID format." });
     }
   }
 
-  // If no userId parameter is present or no prefix found, just continue.
-  next();
+  // Not a clerk-prefixed id — leave alone
+  return next();
 };
 
 export default cleanClerkIdMiddleware;
