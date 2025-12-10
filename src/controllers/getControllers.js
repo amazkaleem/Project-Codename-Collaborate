@@ -1,13 +1,12 @@
 import { sql } from "../config/db.js";
-import { validate as isUuid } from "uuid";
 
 //GET all boards by userId
 export async function getBoardsByUserId(req, res) {
   try {
     const { userId } = req.params;
 
-    // Validate UUID early to avoid accidental route collisions and bogus queries
-    if (!isUuid(userId)) {
+    // Validation early to avoid accidental route collisions and bogus queries
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
 
@@ -32,8 +31,8 @@ export async function getTasksByBoardId(req, res) {
   try {
     const { boardId } = req.params;
 
-    // Validate UUID format
-    if (!isUuid(boardId)) {
+    // Validation
+    if (!boardId || typeof boardId !== "string" || boardId.trim() === "") {
       return res.status(400).json({ message: "Invalid board ID format" });
     }
 
@@ -66,8 +65,8 @@ export async function getTasksByUserId(req, res) {
     */
     const { userId } = req.params;
 
-    // Validate UUID format
-    if (!isUuid(userId)) {
+    // Validation
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
 

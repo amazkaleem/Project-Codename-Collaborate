@@ -1,5 +1,4 @@
 import { sql } from "../config/db.js";
-import { validate as isUuid } from "uuid";
 
 //Creating a new user
 export async function createUser(req, res) {
@@ -76,8 +75,16 @@ export async function createBoard(req, res) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    // Validate UUID format for created_by
-    if (!isUuid(created_by)) {
+    // Validation for created_by
+    if (!created_by || typeof created_by !== "string" || created_by.trim() === "") {
+      return res.status(400).json({ message: "Invalid user ID format" });
+    }
+
+    if (
+      !created_by ||
+      typeof created_by !== "string" ||
+      created_by.trim() === ""
+    ) {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
 
@@ -138,21 +145,24 @@ export async function createTask(req, res) {
       });
     }
 
-    // Validate UUID formats
-    if (!isUuid(created_by)) {
-      return res
-        .status(400)
-        .json({ message: "Invalid created_by user ID format" });
+    // Validation
+    if (
+      !created_by ||
+      typeof created_by !== "string" ||
+      created_by.trim() === ""
+    ) {
+      return res.status(400).json({ message: "Task created by an invalid user ID format" });
     }
 
-    if (!isUuid(board_id)) {
-      return res.status(400).json({ message: "Invalid board ID format" });
+    if (!board_id || typeof boardId !== "string" || boardId.trim() === "") {
+      return res.status(400).json({ message: "Task belongs to Invalid user ID format" });
     }
 
-    if (assigned_to && !isUuid(assigned_to)) {
-      return res
-        .status(400)
-        .json({ message: "Invalid assigned_to user ID format" });
+    if (
+      (assigned_to && typeof assigned_to !== "string") ||
+      assigned_to.trim() === ""
+    ) {
+      return res.status(400).json({ message: "Task assigned to Invalid user ID format" });
     }
 
     // Validate status if provided
@@ -255,10 +265,17 @@ export async function addBoardMember(req, res) {
     const { boardId } = req.params;
     const { user_id, role = "member" } = req.body;
 
-    if (!isUuid(boardId) || !isUuid(user_id)) {
+    if (
+      !boardId ||
+      typeof boardId !== "string" ||
+      boardId.trim() === "" ||
+      !userId ||
+      typeof userId !== "string" ||
+      userId.trim() === ""
+    ) {
       return res
         .status(400)
-        .json({ message: "Invalid boardId or user_id format" });
+        .json({ message: "Invalid boardID or userId format" });
     }
 
     // ensure board exists
