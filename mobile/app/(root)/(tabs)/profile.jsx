@@ -42,7 +42,11 @@ export default function ProfileScreen() {
   // Initialize form with user data
   useEffect(() => {
     if (user) {
-      setUsername(user.username || user.emailAddresses[0]?.emailAddress.split("@")[0] || "");
+      setUsername(
+        user.username ||
+          user.emailAddresses[0]?.emailAddress.split("@")[0] ||
+          ""
+      );
       setFullName(user.fullName || "");
     }
   }, [user]);
@@ -50,9 +54,11 @@ export default function ProfileScreen() {
   // Calculate stats
   const totalBoards = boards?.length || 0;
   const totalTasks = tasks?.length || 0;
-  const completedTasks = tasks?.filter((task) => task.status === "Done").length || 0;
+  const completedTasks =
+    tasks?.filter((task) => task.status === "Done").length || 0;
   const pendingTasks = totalTasks - completedTasks;
-  const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const completionRate =
+    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   // Handle profile update
   const handleUpdateProfile = async () => {
@@ -61,7 +67,10 @@ export default function ProfileScreen() {
     }
 
     if (username.length < 3 || username.length > 50) {
-      return Alert.alert("Error", "Username must be between 3 and 50 characters");
+      return Alert.alert(
+        "Error",
+        "Username must be between 3 and 50 characters"
+      );
     }
 
     setIsUpdating(true);
@@ -72,12 +81,14 @@ export default function ProfileScreen() {
       await updateUser(userId, {
         username: username.trim(),
         full_name: fullName.trim() || null,
-      });
+      }); // We remove `username` here to stop the Clerk error.
 
-      // Update Clerk user
+      // --- STEP 2: Update Clerk user (Only use accepted fields)
+      //We removed the "username" field to stop Clerk error
       await user.update({
-        username: username.trim(),
-        ...(fullName.trim() && { firstName: fullName.trim() }),
+        // firstName/lastName map to the user's "Full Name" in Clerk
+        ...(fullName.trim() && { firstName: fullName.trim() }), // If you want to clear the name:
+        // firstName: fullName.trim() || null
       });
 
       Alert.alert("Success", "Profile updated successfully");
@@ -106,15 +117,18 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               console.log("🗑️ Deleting user account:", userId);
-              
+
               // Delete from backend
               await deleteUser(userId);
 
               // Delete from Clerk
               await user.delete();
 
-              Alert.alert("Account Deleted", "Your account has been permanently deleted");
-              
+              Alert.alert(
+                "Account Deleted",
+                "Your account has been permanently deleted"
+              );
+
               // Clerk will automatically redirect to sign-in
             } catch (error) {
               console.error("❌ Error deleting account:", error);
@@ -138,7 +152,9 @@ export default function ProfileScreen() {
         }}
       >
         <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={{ marginTop: 10, color: COLORS.textLight }}>Loading profile...</Text>
+        <Text style={{ marginTop: 10, color: COLORS.textLight }}>
+          Loading profile...
+        </Text>
       </View>
     );
   }
@@ -167,13 +183,22 @@ export default function ProfileScreen() {
             marginBottom: 15,
           }}
         >
-          <Text style={{ fontSize: 40, fontWeight: "bold", color: COLORS.primary }}>
+          <Text
+            style={{ fontSize: 40, fontWeight: "bold", color: COLORS.primary }}
+          >
             {user?.emailAddresses[0]?.emailAddress.charAt(0).toUpperCase()}
           </Text>
         </View>
 
         {/* User Info */}
-        <Text style={{ fontSize: 24, fontWeight: "bold", color: COLORS.white, marginBottom: 5 }}>
+        <Text
+          style={{
+            fontSize: 24,
+            fontWeight: "bold",
+            color: COLORS.white,
+            marginBottom: 5,
+          }}
+        >
           {user?.fullName || user?.username || "User"}
         </Text>
         <Text style={{ fontSize: 14, color: COLORS.white, opacity: 0.9 }}>
@@ -209,10 +234,19 @@ export default function ProfileScreen() {
           }}
         >
           <Ionicons name="grid-outline" size={24} color={COLORS.primary} />
-          <Text style={{ fontSize: 24, fontWeight: "bold", color: COLORS.text, marginTop: 8 }}>
+          <Text
+            style={{
+              fontSize: 24,
+              fontWeight: "bold",
+              color: COLORS.text,
+              marginTop: 8,
+            }}
+          >
             {totalBoards}
           </Text>
-          <Text style={{ fontSize: 12, color: COLORS.textLight, marginTop: 2 }}>Boards</Text>
+          <Text style={{ fontSize: 12, color: COLORS.textLight, marginTop: 2 }}>
+            Boards
+          </Text>
         </View>
 
         {/* Tasks */}
@@ -232,11 +266,24 @@ export default function ProfileScreen() {
             elevation: 3,
           }}
         >
-          <Ionicons name="checkbox-outline" size={24} color={COLORS.boardTitle} />
-          <Text style={{ fontSize: 24, fontWeight: "bold", color: COLORS.text, marginTop: 8 }}>
+          <Ionicons
+            name="checkbox-outline"
+            size={24}
+            color={COLORS.boardTitle}
+          />
+          <Text
+            style={{
+              fontSize: 24,
+              fontWeight: "bold",
+              color: COLORS.text,
+              marginTop: 8,
+            }}
+          >
             {totalTasks}
           </Text>
-          <Text style={{ fontSize: 12, color: COLORS.textLight, marginTop: 2 }}>Tasks</Text>
+          <Text style={{ fontSize: 12, color: COLORS.textLight, marginTop: 2 }}>
+            Tasks
+          </Text>
         </View>
 
         {/* Completion */}
@@ -257,10 +304,19 @@ export default function ProfileScreen() {
           }}
         >
           <Ionicons name="trophy-outline" size={24} color="#f59e0b" />
-          <Text style={{ fontSize: 24, fontWeight: "bold", color: COLORS.text, marginTop: 8 }}>
+          <Text
+            style={{
+              fontSize: 24,
+              fontWeight: "bold",
+              color: COLORS.text,
+              marginTop: 8,
+            }}
+          >
             {completionRate}%
           </Text>
-          <Text style={{ fontSize: 12, color: COLORS.textLight, marginTop: 2 }}>Complete</Text>
+          <Text style={{ fontSize: 12, color: COLORS.textLight, marginTop: 2 }}>
+            Complete
+          </Text>
         </View>
       </View>
 
@@ -283,29 +339,50 @@ export default function ProfileScreen() {
               marginBottom: 15,
             }}
           >
-            <Text style={{ fontSize: 18, fontWeight: "bold", color: COLORS.text }}>
+            <Text
+              style={{ fontSize: 18, fontWeight: "bold", color: COLORS.text }}
+            >
               Profile Information
             </Text>
             {!isEditingProfile ? (
               <TouchableOpacity onPress={() => setIsEditingProfile(true)}>
-                <Ionicons name="create-outline" size={24} color={COLORS.primary} />
+                <Ionicons
+                  name="create-outline"
+                  size={24}
+                  color={COLORS.primary}
+                />
               </TouchableOpacity>
             ) : (
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <TouchableOpacity
                   onPress={() => {
                     setIsEditingProfile(false);
-                    setUsername(user?.username || user?.emailAddresses[0]?.emailAddress.split("@")[0] || "");
+                    setUsername(
+                      user?.username ||
+                        user?.emailAddresses[0]?.emailAddress.split("@")[0] ||
+                        ""
+                    );
                     setFullName(user?.fullName || "");
                   }}
                 >
-                  <Ionicons name="close-outline" size={24} color={COLORS.textLight} />
+                  <Ionicons
+                    name="close-outline"
+                    size={24}
+                    color={COLORS.textLight}
+                  />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={handleUpdateProfile} disabled={isUpdating}>
+                <TouchableOpacity
+                  onPress={handleUpdateProfile}
+                  disabled={isUpdating}
+                >
                   {isUpdating ? (
                     <ActivityIndicator size="small" color={COLORS.primary} />
                   ) : (
-                    <Ionicons name="checkmark-outline" size={24} color={COLORS.boardTitle} />
+                    <Ionicons
+                      name="checkmark-outline"
+                      size={24}
+                      color={COLORS.boardTitle}
+                    />
                   )}
                 </TouchableOpacity>
               </View>
@@ -314,7 +391,9 @@ export default function ProfileScreen() {
 
           {/* Username */}
           <View style={{ marginBottom: 15 }}>
-            <Text style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 5 }}>
+            <Text
+              style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 5 }}
+            >
               Username
             </Text>
             {isEditingProfile ? (
@@ -336,14 +415,18 @@ export default function ProfileScreen() {
               />
             ) : (
               <Text style={{ fontSize: 16, color: COLORS.text }}>
-                {user?.username || user?.emailAddresses[0]?.emailAddress.split("@")[0] || "Not set"}
+                {user?.username ||
+                  user?.emailAddresses[0]?.emailAddress.split("@")[0] ||
+                  "Not set"}
               </Text>
             )}
           </View>
 
           {/* Full Name */}
           <View style={{ marginBottom: 15 }}>
-            <Text style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 5 }}>
+            <Text
+              style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 5 }}
+            >
               Full Name
             </Text>
             {isEditingProfile ? (
@@ -372,7 +455,11 @@ export default function ProfileScreen() {
 
           {/* Email (Read-only) */}
           <View>
-            <Text style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 5 }}>Email</Text>
+            <Text
+              style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 5 }}
+            >
+              Email
+            </Text>
             <Text style={{ fontSize: 16, color: COLORS.text }}>
               {user?.emailAddresses[0]?.emailAddress}
             </Text>
@@ -413,11 +500,15 @@ export default function ProfileScreen() {
           >
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
-              <Text style={{ fontSize: 16, color: COLORS.text, marginLeft: 10 }}>
+              <Text
+                style={{ fontSize: 16, color: COLORS.text, marginLeft: 10 }}
+              >
                 Completed Tasks
               </Text>
             </View>
-            <Text style={{ fontSize: 16, fontWeight: "bold", color: COLORS.text }}>
+            <Text
+              style={{ fontSize: 16, fontWeight: "bold", color: COLORS.text }}
+            >
               {completedTasks}
             </Text>
           </View>
@@ -433,11 +524,15 @@ export default function ProfileScreen() {
           >
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Ionicons name="time" size={20} color="#f59e0b" />
-              <Text style={{ fontSize: 16, color: COLORS.text, marginLeft: 10 }}>
+              <Text
+                style={{ fontSize: 16, color: COLORS.text, marginLeft: 10 }}
+              >
                 Pending Tasks
               </Text>
             </View>
-            <Text style={{ fontSize: 16, fontWeight: "bold", color: COLORS.text }}>
+            <Text
+              style={{ fontSize: 16, fontWeight: "bold", color: COLORS.text }}
+            >
               {pendingTasks}
             </Text>
           </View>
@@ -451,12 +546,20 @@ export default function ProfileScreen() {
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
-              <Text style={{ fontSize: 16, color: COLORS.text, marginLeft: 10 }}>
+              <Ionicons
+                name="calendar-outline"
+                size={20}
+                color={COLORS.primary}
+              />
+              <Text
+                style={{ fontSize: 16, color: COLORS.text, marginLeft: 10 }}
+              >
                 Member Since
               </Text>
             </View>
-            <Text style={{ fontSize: 16, fontWeight: "bold", color: COLORS.text }}>
+            <Text
+              style={{ fontSize: 16, fontWeight: "bold", color: COLORS.text }}
+            >
               {new Date(user?.createdAt).toLocaleDateString()}
             </Text>
           </View>

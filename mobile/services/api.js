@@ -15,6 +15,8 @@ if (!API_BASE_URL) {
 
 /**
  * Generic API request handler with error handling
+ *Implement this logic inside the following api_request
+ *Generic API request handler with error handling
  */
 const apiRequest = async (endpoint, options = {}) => {
   try {
@@ -30,7 +32,6 @@ const apiRequest = async (endpoint, options = {}) => {
       },
       ...options,
     });
-
     return data;
   } catch (error) {
     console.error(`❌ API Request Failed [${endpoint}]:`, error.message);

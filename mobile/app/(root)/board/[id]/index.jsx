@@ -162,7 +162,7 @@ export default function BoardDetailScreen() {
 
       await createTask({
         title: newTaskTitle.trim(),
-        board_id: boardId,
+        boardId: boardId,
         created_by: userId,
         status: newTaskStatus,
         description: null,

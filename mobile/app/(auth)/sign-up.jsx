@@ -11,6 +11,7 @@ import { useSignUp } from "@clerk/clerk-expo";
 import { Link, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "@/constants/colors";
+import { createUser } from "@/services/api";
 
 export default function SignUpScreen() {
   const { isLoaded, signUp, setActive } = useSignUp();
@@ -39,7 +40,6 @@ export default function SignUpScreen() {
 
     setLoading(true);
 
-    // Start sign-up process using email and password provided
     try {
       await signUp.create({
         emailAddress,
@@ -49,13 +49,9 @@ export default function SignUpScreen() {
       // Send user an email with verification code
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
 
-      // Set 'pendingVerification' to true to display second form
-      // and capture OTP code
       setPendingVerification(true);
       Alert.alert("Success", "Verification code sent to your email");
     } catch (err) {
-      // See https://clerk.com/docs/custom-flows/error-handling
-      // for more info on error handling
       console.error(JSON.stringify(err, null, 2));
       Alert.alert(
         "Error",
@@ -84,19 +80,53 @@ export default function SignUpScreen() {
       });
 
       // If verification was completed, set the session to active
-      // and redirect the user
       if (signUpAttempt.status === "complete") {
         await setActive({ session: signUpAttempt.createdSessionId });
-        router.replace("/(root)/(tabs)/home");
+
+        // Get the user ID from Clerk
+        const clerkUserId = signUpAttempt.createdUserId;
+
+        console.log("✅ Clerk sign-up complete. User ID:", clerkUserId);
+        console.log("📝 Creating user in database...");
+
+        // Create user in your database
+        try {
+          const username = emailAddress.split("@")[0]; // Extract username from email
+          const fullName = username; // You can prompt for this separately if needed
+
+          await createUser({
+            userId: clerkUserId, //Clerk's provided userId
+            username: username,
+            email: emailAddress,
+            password_hash: password, // Clerk manages the password
+            full_name: fullName,
+          });
+
+          console.log("✅ User created in database successfully");
+
+          // Redirect to home
+          router.replace("/(root)/(tabs)/home");
+        } catch (dbError) {
+          console.error("❌ Error creating user in database:", dbError);
+
+          // Even if database creation fails, the user is authenticated in Clerk
+          // Show a warning but still redirect
+          Alert.alert(
+            "Warning",
+            "Account created but there was an issue setting up your profile. Please contact support if you experience issues.",
+            [
+              {
+                text: "OK",
+                onPress: () => router.replace("/(root)/(tabs)/home"),
+              },
+            ]
+          );
+        }
       } else {
-        // If the status is not complete, check why. User may need to
-        // complete further steps.
         console.error(JSON.stringify(signUpAttempt, null, 2));
         Alert.alert("Error", "Verification failed. Please try again.");
       }
     } catch (err) {
-      // See https://clerk.com/docs/custom-flows/error-handling
-      // for more info on error handling
       console.error(JSON.stringify(err, null, 2));
       Alert.alert(
         "Error",

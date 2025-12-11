@@ -79,6 +79,7 @@ export default function HomeScreen() {
       await createNewBoard({
         board_name: newBoardName.trim(),
         description: newBoardDescription.trim() || null,
+        created_by: userId
       });
 
       // Clear form and close modal
