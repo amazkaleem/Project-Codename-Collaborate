@@ -6,11 +6,16 @@ export async function createUser(req, res) {
     // console.log("POST /api/users body:", req.body);
 
     //Use req.body for data sent in POST, PUT, or PATCH requests, usually in JSON or form data.
-    const { username, email, password_hash, full_name } = req.body;
+    const { userId, username, email, password_hash, full_name } = req.body;
 
     // Input validation - check for required fields
     if (!username || !email || !password_hash || !full_name) {
       return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // Validation
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
+      return res.status(400).json({ message: "Invalid user ID format" });
     }
 
     // Additional validation - check field lengths and formats
@@ -34,8 +39,8 @@ export async function createUser(req, res) {
 
     // Using parameterized query - values are automatically escaped
     const user = await sql`
-      INSERT INTO users(username, email, password_hash, full_name)
-      VALUES (${username}, ${email}, ${password_hash}, ${full_name})
+      INSERT INTO users(user_id, username, email, password_hash, full_name)
+      VALUES (${userId}, ${username}, ${email}, ${password_hash}, ${full_name})
       RETURNING user_id, username, email, full_name, avatar_url, created_at, is_active
     `;
 
@@ -76,7 +81,11 @@ export async function createBoard(req, res) {
     }
 
     // Validation for created_by
-    if (!created_by || typeof created_by !== "string" || created_by.trim() === "") {
+    if (
+      !created_by ||
+      typeof created_by !== "string" ||
+      created_by.trim() === ""
+    ) {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
 
@@ -151,18 +160,24 @@ export async function createTask(req, res) {
       typeof created_by !== "string" ||
       created_by.trim() === ""
     ) {
-      return res.status(400).json({ message: "Task created by an invalid user ID format" });
+      return res
+        .status(400)
+        .json({ message: "Task created by an invalid user ID format" });
     }
 
     if (!board_id || typeof boardId !== "string" || boardId.trim() === "") {
-      return res.status(400).json({ message: "Task belongs to Invalid user ID format" });
+      return res
+        .status(400)
+        .json({ message: "Task belongs to Invalid user ID format" });
     }
 
     if (
       (assigned_to && typeof assigned_to !== "string") ||
       assigned_to.trim() === ""
     ) {
-      return res.status(400).json({ message: "Task assigned to Invalid user ID format" });
+      return res
+        .status(400)
+        .json({ message: "Task assigned to Invalid user ID format" });
     }
 
     // Validate status if provided
