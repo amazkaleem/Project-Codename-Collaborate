@@ -99,23 +99,13 @@ export async function createBoard(req, res) {
       RETURNING *
     `;
 
-    // 🛑 NEW CHECK HERE 🛑
-    if (!board || board.length === 0) {
-      // This should ideally be handled by the catch block below
-      // for specific DB errors, but this guards against unexpected empty results.
-      console.error("Board insertion failed or returned no row.");
-      return res
-        .status(500)
-        .json({ message: "Failed to retrieve new board ID." });
-    }
-
     // Also add the creator as an admin member of the board
-    await sql`
-      INSERT INTO board_members(board_id, user_id, role)
-      VALUES (${board[0].board_id}, ${created_by}, 'admin')
-    `;
+    // await sql`
+    //   INSERT INTO board_members(board_id, user_id, role)
+    //   VALUES (${board[0].board_id}, ${created_by}, 'admin')
+    // `;
 
-    console.log("New board created:", board[0].board_id);
+    // console.log("New board created:", board[0].board_id);
     res.status(201).json(board[0]);
   } catch (error) {
     console.log("There was an error creating a new board:", error);
