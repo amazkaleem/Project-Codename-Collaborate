@@ -265,7 +265,8 @@ export async function createTask(req, res) {
 // Add a member to a board (POST /api/boards/:boardId/members)
 export async function addBoardMember(req, res) {
   try {
-    const { boardId, userId, role = "member" } = req.body;
+    const { boardId } = req.params;
+    const { userId, role = "member" } = req.body;
 
     if (
       !boardId ||
