@@ -1,6 +1,15 @@
 amazkaleem8@gmail.com
 thisisMe@12
 
+naziasaeed.ns@gmail.com
+letmein12
+
+amazkaleem50@gmail.com
+thereIsNoOne@321
+
+36d2f293-vHHL-dNyt-5mM5-A8hFrJT -------->(UUID from Clerk)
+a874d7da-a329-4246-9e04-9db24afbaabb --->(UUID from Neon) 
+
 
 These files exist in your structure but haven't been implemented yet:
 
