@@ -127,7 +127,7 @@ export async function createTask(req, res) {
     const {
       title,
       created_by,
-      board_id,
+      boardId,
       description,
       assigned_to,
       due_date,
@@ -136,7 +136,7 @@ export async function createTask(req, res) {
     } = req.body;
 
     // Input validation - check for required fields
-    if (!title || !created_by || !board_id) {
+    if (!title || !created_by || !boardId) {
       return res.status(400).json({
         message: "Title, created_by, and board_id are required",
       });
@@ -153,7 +153,7 @@ export async function createTask(req, res) {
         .json({ message: "Task created by an invalid user ID format" });
     }
 
-    if (!board_id || typeof board_id !== "string" || board_id.trim() === "") {
+    if (!boardId || typeof boardId !== "string" || boardId.trim() === "") {
       return res
         .status(400)
         .json({ message: "Task belongs to Invalid user ID format" });
@@ -204,7 +204,7 @@ export async function createTask(req, res) {
       )
       VALUES (
         ${title},
-        ${board_id},
+        ${boardId},
         ${created_by},
         ${description || null},
         ${assigned_to || null},
@@ -220,7 +220,7 @@ export async function createTask(req, res) {
       UPDATE boards
       SET task_count = task_count + 1,
           updated_at = CURRENT_TIMESTAMP
-      WHERE board_id = ${board_id}
+      WHERE board_id = ${boardId}
       RETURNING task_count
     `;
 
@@ -266,7 +266,7 @@ export async function createTask(req, res) {
 export async function addBoardMember(req, res) {
   try {
     const { boardId } = req.params;
-    const { user_id, role = "member" } = req.body;
+    const { userId, role = "member" } = req.body;
 
     if (
       !boardId ||
@@ -289,14 +289,14 @@ export async function addBoardMember(req, res) {
 
     // ensure user exists
     const user =
-      await sql`SELECT user_id FROM users WHERE user_id = ${user_id}`;
+      await sql`SELECT user_id FROM users WHERE user_id = ${userId}`;
     if (!user.length)
       return res.status(404).json({ message: "User not found" });
 
     // insert member, avoid duplicates
     const inserted = await sql`
       INSERT INTO board_members(board_id, user_id, role)
-      VALUES (${boardId}, ${user_id}, ${role})
+      VALUES (${boardId}, ${userId}, ${role})
       ON CONFLICT (board_id, user_id) DO NOTHING
       RETURNING *
     `;
