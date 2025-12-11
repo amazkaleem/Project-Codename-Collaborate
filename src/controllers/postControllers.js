@@ -265,8 +265,7 @@ export async function createTask(req, res) {
 // Add a member to a board (POST /api/boards/:boardId/members)
 export async function addBoardMember(req, res) {
   try {
-    const { boardId } = req.params;
-    const { userId, role = "member" } = req.body;
+    const { boardId, userId, role = "member" } = req.body;
 
     if (
       !boardId ||
@@ -288,8 +287,7 @@ export async function addBoardMember(req, res) {
       return res.status(404).json({ message: "Board not found" });
 
     // ensure user exists
-    const user =
-      await sql`SELECT user_id FROM users WHERE user_id = ${userId}`;
+    const user = await sql`SELECT user_id FROM users WHERE user_id = ${userId}`;
     if (!user.length)
       return res.status(404).json({ message: "User not found" });
 
