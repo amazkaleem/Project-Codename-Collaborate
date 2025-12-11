@@ -153,7 +153,7 @@ export async function createTask(req, res) {
         .json({ message: "Task created by an invalid user ID format" });
     }
 
-    if (!board_id || typeof boardId !== "string" || boardId.trim() === "") {
+    if (!board_id || typeof board_id !== "string" || board_id.trim() === "") {
       return res
         .status(400)
         .json({ message: "Task belongs to Invalid user ID format" });
