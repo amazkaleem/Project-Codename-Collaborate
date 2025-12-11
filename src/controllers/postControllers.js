@@ -81,19 +81,7 @@ export async function createBoard(req, res) {
     }
 
     // Validation for created_by
-    if (
-      !created_by ||
-      typeof created_by !== "string" ||
-      created_by.trim() === ""
-    ) {
-      return res.status(400).json({ message: "Invalid user ID format" });
-    }
-
-    if (
-      !created_by ||
-      typeof created_by !== "string" ||
-      created_by.trim() === ""
-    ) {
+    if (typeof created_by !== "string" || created_by.trim() === "") {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
 
@@ -110,6 +98,16 @@ export async function createBoard(req, res) {
       VALUES (${board_name}, ${description}, ${created_by})
       RETURNING *
     `;
+
+    // 🛑 NEW CHECK HERE 🛑
+    if (!board || board.length === 0) {
+      // This should ideally be handled by the catch block below
+      // for specific DB errors, but this guards against unexpected empty results.
+      console.error("Board insertion failed or returned no row.");
+      return res
+        .status(500)
+        .json({ message: "Failed to retrieve new board ID." });
+    }
 
     // Also add the creator as an admin member of the board
     await sql`
