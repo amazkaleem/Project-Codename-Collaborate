@@ -120,9 +120,7 @@ export async function createBoard(req, res) {
     console.log("New board created:", board[0].board_id);
     res.status(201).json(board[0]);
   } catch (error) {
-    // 💡 Add better logging here to see the actual error object
     console.log("There was an error creating a new board:", error);
-    console.error("DB Error Code:", error.code);
 
     // Handle foreign key constraint violations (invalid user)
     if (error.code === "23503") {
@@ -131,8 +129,6 @@ export async function createBoard(req, res) {
       });
     }
 
-    // If it's a 500, log the error before sending the response
-    console.error("Falling back to 500 error for unhandled exception:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 }
