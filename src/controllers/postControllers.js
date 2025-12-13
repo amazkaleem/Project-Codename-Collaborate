@@ -190,9 +190,8 @@ export async function createTask(req, res) {
       });
     }
 
-    // Using parameterized query - values are automatically escaped
     const task = await sql`
-      INSERT INTO tasks(
+      INSERT INTO tasks (
         title,
         board_id,
         created_by,
@@ -206,11 +205,11 @@ export async function createTask(req, res) {
         ${title},
         ${boardId},
         ${created_by},
-        ${description || null},
-        ${assigned_to || null},
-        ${due_date || null},
-        ${tags || null},
-        ${status || "To-Do"}
+        ${description ?? null},
+        ${assigned_to ?? null},
+        ${due_date ?? null},
+        ${tags ?? null},
+        ${status ?? "To-Do"}
       )
       RETURNING *
     `;
