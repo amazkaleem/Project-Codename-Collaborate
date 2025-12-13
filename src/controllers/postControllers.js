@@ -205,11 +205,11 @@ export async function createTask(req, res) {
         ${title},
         ${boardId},
         ${created_by},
-        ${description ?? null},
-        ${assigned_to ?? null},
-        ${due_date ?? null},
-        ${tags ?? null},
-        ${status ?? "To-Do"}
+        ${description},
+        ${assigned_to},
+        ${due_date},
+        ${tags},
+        ${status}
       )
       RETURNING *
     `;
