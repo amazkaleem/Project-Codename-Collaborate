@@ -159,6 +159,12 @@ export async function createTask(req, res) {
         .json({ message: "Task belongs to Invalid user ID format" });
     }
 
+    //During development, when trying send createTask() api request, the server would respond with "Internal Server Error"
+    //This error took me hours to solve, maybe even days
+    //It was just the handling of the null values provided in the req.body
+    //if ((assigned_to && typeof assigned_to !== "string") ||assigned_to.trim() === "") {...}
+    //The above line, previously used is flawed. When assigned_to is null, the .trim() on it crashes causing the server to crash
+    //And hence, the Server crash. Basis in Javascript is VERY IMPORTANT for backend!
     if (assigned_to != null) {
       if (typeof assigned_to !== "string" || assigned_to.trim() === "") {
         return res
