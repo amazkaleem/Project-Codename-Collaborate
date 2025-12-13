@@ -1,5 +1,4 @@
 import { sql } from "../config/db.js";
-import { validate as isUuid } from "uuid";
 
 //Creating a new user
 export async function createUser(req, res) {
@@ -7,11 +6,16 @@ export async function createUser(req, res) {
     // console.log("POST /api/users body:", req.body);
 
     //Use req.body for data sent in POST, PUT, or PATCH requests, usually in JSON or form data.
-    const { username, email, password_hash, full_name } = req.body;
+    const { userId, username, email, password_hash, full_name } = req.body;
 
     // Input validation - check for required fields
     if (!username || !email || !password_hash || !full_name) {
       return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // Validation
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
+      return res.status(400).json({ message: "Invalid user ID format" });
     }
 
     // Additional validation - check field lengths and formats
@@ -35,8 +39,8 @@ export async function createUser(req, res) {
 
     // Using parameterized query - values are automatically escaped
     const user = await sql`
-      INSERT INTO users(username, email, password_hash, full_name)
-      VALUES (${username}, ${email}, ${password_hash}, ${full_name})
+      INSERT INTO users(user_id, username, email, password_hash, full_name)
+      VALUES (${userId}, ${username}, ${email}, ${password_hash}, ${full_name})
       RETURNING user_id, username, email, full_name, avatar_url, created_at, is_active
     `;
 
@@ -76,8 +80,8 @@ export async function createBoard(req, res) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    // Validate UUID format for created_by
-    if (!isUuid(created_by)) {
+    // Validation for created_by
+    if (typeof created_by !== "string" || created_by.trim() === "") {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
 
@@ -123,7 +127,7 @@ export async function createTask(req, res) {
     const {
       title,
       created_by,
-      board_id,
+      boardId,
       description,
       assigned_to,
       due_date,
@@ -132,27 +136,36 @@ export async function createTask(req, res) {
     } = req.body;
 
     // Input validation - check for required fields
-    if (!title || !created_by || !board_id) {
+    if (!title || !created_by || !boardId) {
       return res.status(400).json({
         message: "Title, created_by, and board_id are required",
       });
     }
 
-    // Validate UUID formats
-    if (!isUuid(created_by)) {
+    // Validation
+    if (
+      !created_by ||
+      typeof created_by !== "string" ||
+      created_by.trim() === ""
+    ) {
       return res
         .status(400)
-        .json({ message: "Invalid created_by user ID format" });
+        .json({ message: "Task created by an invalid user ID format" });
     }
 
-    if (!isUuid(board_id)) {
-      return res.status(400).json({ message: "Invalid board ID format" });
-    }
-
-    if (assigned_to && !isUuid(assigned_to)) {
+    if (!boardId || typeof boardId !== "string" || boardId.trim() === "") {
       return res
         .status(400)
-        .json({ message: "Invalid assigned_to user ID format" });
+        .json({ message: "Task belongs to Invalid user ID format" });
+    }
+
+    if (
+      (assigned_to && typeof assigned_to !== "string") ||
+      assigned_to.trim() === ""
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Task assigned to Invalid user ID format" });
     }
 
     // Validate status if provided
@@ -191,7 +204,7 @@ export async function createTask(req, res) {
       )
       VALUES (
         ${title},
-        ${board_id},
+        ${boardId},
         ${created_by},
         ${description || null},
         ${assigned_to || null},
@@ -207,7 +220,7 @@ export async function createTask(req, res) {
       UPDATE boards
       SET task_count = task_count + 1,
           updated_at = CURRENT_TIMESTAMP
-      WHERE board_id = ${board_id}
+      WHERE board_id = ${boardId}
       RETURNING task_count
     `;
 
@@ -253,12 +266,19 @@ export async function createTask(req, res) {
 export async function addBoardMember(req, res) {
   try {
     const { boardId } = req.params;
-    const { user_id, role = "member" } = req.body;
+    const { userId, role = "member" } = req.body;
 
-    if (!isUuid(boardId) || !isUuid(user_id)) {
+    if (
+      !boardId ||
+      typeof boardId !== "string" ||
+      boardId.trim() === "" ||
+      !userId ||
+      typeof userId !== "string" ||
+      userId.trim() === ""
+    ) {
       return res
         .status(400)
-        .json({ message: "Invalid boardId or user_id format" });
+        .json({ message: "Invalid boardID or userId format" });
     }
 
     // ensure board exists
@@ -268,15 +288,14 @@ export async function addBoardMember(req, res) {
       return res.status(404).json({ message: "Board not found" });
 
     // ensure user exists
-    const user =
-      await sql`SELECT user_id FROM users WHERE user_id = ${user_id}`;
+    const user = await sql`SELECT user_id FROM users WHERE user_id = ${userId}`;
     if (!user.length)
       return res.status(404).json({ message: "User not found" });
 
     // insert member, avoid duplicates
     const inserted = await sql`
       INSERT INTO board_members(board_id, user_id, role)
-      VALUES (${boardId}, ${user_id}, ${role})
+      VALUES (${boardId}, ${userId}, ${role})
       ON CONFLICT (board_id, user_id) DO NOTHING
       RETURNING *
     `;

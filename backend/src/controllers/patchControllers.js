@@ -1,5 +1,4 @@
 import { sql } from "../config/db.js";
-import { validate as isUuid } from "uuid";
 
 // UPDATE user information (username, full_name, avatar_url)
 export async function patchUserByUserId(req, res) {
@@ -7,8 +6,8 @@ export async function patchUserByUserId(req, res) {
     const { userId } = req.params;
     const { username, full_name, avatar_url } = req.body;
 
-    // Validate UUID format
-    if (!isUuid(userId)) {
+    // Validation
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
 
@@ -123,8 +122,8 @@ export async function patchBoardByBoardId(req, res) {
     const { boardId } = req.params;
     const { board_name, description } = req.body;
 
-    // Validate UUID format
-    if (!isUuid(boardId)) {
+    // Validation
+    if (!boardId || typeof boardId !== "string" || boardId.trim() === "") {
       return res.status(400).json({ message: "Invalid board ID format" });
     }
 
@@ -190,8 +189,8 @@ export async function patchTaskByTaskId(req, res) {
     const { title, description, assigned_to, due_date, tags, status } =
       req.body;
 
-    // Validate UUID format
-    if (!isUuid(taskId)) {
+    // Validation
+    if (!taskId || typeof taskId !== "string" || taskId.trim() === "") {
       return res.status(400).json({ message: "Invalid task ID format" });
     }
 
@@ -218,7 +217,7 @@ export async function patchTaskByTaskId(req, res) {
     }
 
     // Validate assigned_to is a valid UUID if provided
-    if (assigned_to && assigned_to !== null && !isUuid(assigned_to)) {
+    if (assigned_to && assigned_to !== null) {
       return res
         .status(400)
         .json({ message: "Invalid assigned_to user ID format" });

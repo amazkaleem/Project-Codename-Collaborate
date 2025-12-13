@@ -1,13 +1,12 @@
 import { sql } from "../config/db.js";
-import { validate as isUuid } from "uuid";
 
 //Deleting a user. Done by the user himself/herself
 export async function deleteUser(req, res) {
   try {
-    const { deleteId } = req.params;
+    const { deleteId: userId } = req.params;
 
-    // Validate UUID format
-    if (!isUuid(deleteId)) {
+    // Validation
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
       return res.status(400).json({ message: "Invalid user ID format" });
     }
 
@@ -15,13 +14,13 @@ export async function deleteUser(req, res) {
     const memberBoards = await sql`
       SELECT DISTINCT board_id
       FROM board_members
-      WHERE user_id = ${deleteId}
+      WHERE user_id = ${userId}
     `;
 
     // Delete the user (this will also remove board_members rows if FK has ON DELETE CASCADE)
     const afterDelete = await sql`
         DELETE FROM users 
-        WHERE user_id = ${deleteId} 
+        WHERE user_id = ${userId} 
         RETURNING user_id, username, email
         `;
 
@@ -56,8 +55,8 @@ export async function deleteBoard(req, res) {
   try {
     const { deleteId: boardId } = req.params;
 
-    // Validate UUID format
-    if (!isUuid(boardId)) {
+    // Validation
+    if (!boardId || typeof boardId !== "string" || boardId.trim() === "") {
       return res.status(400).json({ message: "Invalid board ID format" });
     }
 
@@ -88,8 +87,8 @@ export async function deleteTask(req, res) {
   try {
     const { deleteId: taskId } = req.params;
 
-    // Validate UUID format
-    if (!isUuid(taskId)) {
+    // Validation
+    if (!taskId || typeof taskId !== "string" || taskId.trim() === "") {
       return res.status(400).json({ message: "Invalid task ID format" });
     }
 
@@ -131,10 +130,18 @@ export async function removeBoardMember(req, res) {
   try {
     const { boardId, userId } = req.params;
 
-    if (!isUuid(boardId) || !isUuid(userId)) {
+    //Validation
+    if (
+      !userId ||
+      typeof userId !== "string" ||
+      userId.trim() === "" ||
+      !boardId ||
+      typeof boardId !== "string" ||
+      boardId.trim() === ""
+    ) {
       return res
         .status(400)
-        .json({ message: "Invalid boardId or userId format" });
+        .json({ message: "Invalid user ID or board ID format" });
     }
 
     // Start a manual transaction using BEGIN / COMMIT / ROLLBACK
