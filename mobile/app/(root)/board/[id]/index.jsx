@@ -7,11 +7,11 @@ import {
   Alert,
   TextInput,
   RefreshControl,
+  Modal,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useUser } from "@clerk/clerk-expo";
 import { useState, useEffect } from "react";
-import { useTasks } from "@/hooks/useTasks";
 import { COLORS } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -41,10 +41,17 @@ export default function BoardDetailScreen() {
   const [boardDescription, setBoardDescription] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // New task modal state
-  const [showNewTaskInput, setShowNewTaskInput] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [newTaskStatus, setNewTaskStatus] = useState("To-Do");
+  // Enhanced task modal state
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [isEditingTask, setIsEditingTask] = useState(false);
+  const [currentTaskId, setCurrentTaskId] = useState(null);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskAssignee, setTaskAssignee] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskLabels, setTaskLabels] = useState("");
+  const [taskStatus, setTaskStatus] = useState("To-Do");
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
 
   // Load board and tasks
   const loadBoardData = async () => {
@@ -53,7 +60,6 @@ export default function BoardDetailScreen() {
     try {
       console.log("📥 Loading board data:", boardId);
 
-      // Fetch all user's boards to find this specific board
       const userBoards = await getBoardsByUserId(userId);
       const currentBoard = userBoards.find((b) => b.board_id === boardId);
 
@@ -67,7 +73,6 @@ export default function BoardDetailScreen() {
       setBoardName(currentBoard.board_name);
       setBoardDescription(currentBoard.description || "");
 
-      // Fetch tasks for this board
       const boardTasks = await getTasksByBoardId(boardId);
       setTasks(boardTasks);
 
@@ -105,12 +110,10 @@ export default function BoardDetailScreen() {
     setIsUpdating(true);
     try {
       console.log("📝 Updating board:", { boardName, boardDescription });
-
       await updateBoard(boardId, {
         board_name: boardName.trim(),
         description: boardDescription.trim() || null,
       });
-
       Alert.alert("Success", "Board updated successfully");
       setIsEditingBoard(false);
       await loadBoardData();
@@ -148,58 +151,115 @@ export default function BoardDetailScreen() {
     );
   };
 
-  // Create new task
-  const handleCreateTask = async () => {
-    if (!newTaskTitle.trim()) {
-      return Alert.alert("Error", "Task title cannot be empty");
+  // Open task modal for creation
+  const openCreateTaskModal = (status = "To-Do") => {
+    setIsEditingTask(false);
+    setCurrentTaskId(null);
+    setTaskTitle("");
+    setTaskDescription("");
+    setTaskAssignee("");
+    setTaskDueDate("");
+    setTaskLabels("");
+    setTaskStatus(status);
+    setShowTaskModal(true);
+  };
+
+  // Open task modal for editing
+  const openEditTaskModal = (task) => {
+    setIsEditingTask(true);
+    setCurrentTaskId(task.task_id);
+    setTaskTitle(task.title);
+    setTaskDescription(task.description || "");
+    setTaskAssignee(task.assigned_to || "");
+    setTaskDueDate(task.due_date || "");
+    setTaskLabels(task.tags ? task.tags.join(", ") : "");
+    setTaskStatus(task.status);
+    setShowTaskModal(true);
+  };
+
+  // Close task modal
+  const closeTaskModal = () => {
+    setShowTaskModal(false);
+    setIsEditingTask(false);
+    setCurrentTaskId(null);
+    setTaskTitle("");
+    setTaskDescription("");
+    setTaskAssignee("");
+    setTaskDueDate("");
+    setTaskLabels("");
+    setTaskStatus("To-Do");
+  };
+
+  // Create or update task
+  const handleSaveTask = async () => {
+    if (!taskTitle.trim()) {
+      return Alert.alert("Error", "Task title is required");
     }
 
+    if (taskTitle.length > 255) {
+      return Alert.alert("Error", "Task title must not exceed 255 characters");
+    }
+
+    // Parse labels
+    const tagsArray = taskLabels
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0);
+
+    setIsCreatingTask(true);
     try {
-      console.log("📝 Creating task:", {
-        title: newTaskTitle,
-        status: newTaskStatus,
-      });
+      const taskData = {
+        title: taskTitle.trim(),
+        description: taskDescription.trim() || null,
+        assigned_to: taskAssignee.trim() || null,
+        due_date: taskDueDate.trim() || null,
+        tags: tagsArray.length > 0 ? tagsArray : null,
+        status: taskStatus,
+      };
 
-      await createTask({
-        title: newTaskTitle.trim(),
-        boardId: boardId,
-        created_by: userId,
-        status: newTaskStatus,
-        description: null,
-        assigned_to: null,
-        due_date: null,
-        tags: null,
-      });
+      if (isEditingTask && currentTaskId) {
+        // Update existing task
+        console.log("📝 Updating task:", currentTaskId);
+        await updateTask(currentTaskId, taskData);
+        Alert.alert("Success", "Task updated successfully");
+      } else {
+        // Create new task
+        console.log("📝 Creating task:", taskData);
+        await createTask({
+          ...taskData,
+          boardId: boardId,
+          created_by: userId,
+        });
+        Alert.alert("Success", "Task created successfully");
+      }
 
-      setNewTaskTitle("");
-      setNewTaskStatus("To-Do");
-      setShowNewTaskInput(false);
+      closeTaskModal();
       await loadBoardData();
     } catch (error) {
-      console.error("❌ Error creating task:", error);
-      Alert.alert("Error", error.message || "Failed to create task");
+      console.error("❌ Error saving task:", error);
+      Alert.alert(
+        "Error",
+        error.message || `Failed to ${isEditingTask ? "update" : "create"} task`
+      );
+    } finally {
+      setIsCreatingTask(false);
     }
   };
 
-  // Update task status (drag & drop simulation)
+  // Update task status
   const handleTaskStatusChange = async (taskId, newStatus) => {
     try {
       console.log("📝 Updating task status:", { taskId, newStatus });
-
       await updateTask(taskId, { status: newStatus });
-
-      // Update local state immediately for better UX
       setTasks((prevTasks) =>
         prevTasks.map((task) =>
           task.task_id === taskId ? { ...task, status: newStatus } : task
         )
       );
-
       console.log("✅ Task status updated");
     } catch (error) {
       console.error("❌ Error updating task:", error);
       Alert.alert("Error", error.message || "Failed to update task status");
-      // Reload to sync state
       await loadBoardData();
     }
   };
@@ -271,10 +331,7 @@ export default function BoardDetailScreen() {
     );
   }
 
-  // Check if user is board owner
   const isOwner = board.created_by === userId;
-
-  // Group tasks by status
   const tasksByStatus = TASK_STATUSES.reduce((acc, status) => {
     acc[status] = tasks.filter((task) => task.status === status);
     return acc;
@@ -306,7 +363,6 @@ export default function BoardDetailScreen() {
           >
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
           </TouchableOpacity>
-
           {isEditingBoard ? (
             <TextInput
               style={{
@@ -338,7 +394,6 @@ export default function BoardDetailScreen() {
               {board.board_name}
             </Text>
           )}
-
           {isOwner && !isEditingBoard && (
             <TouchableOpacity
               onPress={() => setIsEditingBoard(true)}
@@ -351,7 +406,6 @@ export default function BoardDetailScreen() {
               />
             </TouchableOpacity>
           )}
-
           {isEditingBoard && (
             <View style={{ flexDirection: "row", marginLeft: 10 }}>
               <TouchableOpacity
@@ -386,11 +440,12 @@ export default function BoardDetailScreen() {
           )}
         </View>
 
+        {/* BOARD DESCRIPTION */}
         {isEditingBoard ? (
           <TextInput
             style={{
               fontSize: 14,
-              color: COLORS.textLight,
+              color: COLORS.text,
               backgroundColor: COLORS.background,
               paddingVertical: 8,
               paddingHorizontal: 12,
@@ -398,25 +453,31 @@ export default function BoardDetailScreen() {
               borderWidth: 1,
               borderColor: COLORS.border,
               marginBottom: 10,
+              minHeight: 60,
+              textAlignVertical: "top",
             }}
             value={boardDescription}
             onChangeText={setBoardDescription}
-            placeholder="Board description"
+            placeholder="Board description (optional)"
             placeholderTextColor={COLORS.textLight}
             multiline
+            numberOfLines={3}
           />
         ) : (
-          board.description && (
-            <Text
-              style={{
-                fontSize: 14,
-                color: COLORS.textLight,
-                marginBottom: 10,
-              }}
-            >
-              {board.description}
-            </Text>
-          )
+          <>
+            {board.description ? (
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: COLORS.textLight,
+                  marginBottom: 10,
+                  lineHeight: 20,
+                }}
+              >
+                {board.description}
+              </Text>
+            ) : null}
+          </>
         )}
 
         <View
@@ -443,7 +504,6 @@ export default function BoardDetailScreen() {
                 {board.member_count === 1 ? "member" : "members"}
               </Text>
             </TouchableOpacity>
-
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Ionicons
                 name="checkbox-outline"
@@ -457,7 +517,6 @@ export default function BoardDetailScreen() {
               </Text>
             </View>
           </View>
-
           {isOwner && (
             <TouchableOpacity onPress={handleDeleteBoard}>
               <Ionicons name="trash-outline" size={20} color="#ef4444" />
@@ -539,8 +598,9 @@ export default function BoardDetailScreen() {
               nestedScrollEnabled
             >
               {tasksByStatus[status].map((task) => (
-                <View
+                <TouchableOpacity
                   key={task.task_id}
+                  onPress={() => openEditTaskModal(task)}
                   style={{
                     backgroundColor: COLORS.background,
                     padding: 12,
@@ -560,7 +620,6 @@ export default function BoardDetailScreen() {
                   >
                     {task.title}
                   </Text>
-
                   {task.description && (
                     <Text
                       style={{
@@ -573,7 +632,6 @@ export default function BoardDetailScreen() {
                       {task.description}
                     </Text>
                   )}
-
                   {task.due_date && (
                     <View
                       style={{
@@ -598,7 +656,6 @@ export default function BoardDetailScreen() {
                       </Text>
                     </View>
                   )}
-
                   {task.tags && task.tags.length > 0 && (
                     <View
                       style={{
@@ -648,7 +705,8 @@ export default function BoardDetailScreen() {
                     <View style={{ flexDirection: "row", gap: 5 }}>
                       {status !== "To-Do" && (
                         <TouchableOpacity
-                          onPress={() => {
+                          onPress={(e) => {
+                            e.stopPropagation();
                             const currentIndex = TASK_STATUSES.indexOf(status);
                             handleTaskStatusChange(
                               task.task_id,
@@ -672,7 +730,8 @@ export default function BoardDetailScreen() {
                       )}
                       {status !== "Done" && (
                         <TouchableOpacity
-                          onPress={() => {
+                          onPress={(e) => {
+                            e.stopPropagation();
                             const currentIndex = TASK_STATUSES.indexOf(status);
                             handleTaskStatusChange(
                               task.task_id,
@@ -698,7 +757,10 @@ export default function BoardDetailScreen() {
 
                     {/* Delete Button */}
                     <TouchableOpacity
-                      onPress={() => handleDeleteTask(task.task_id)}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleDeleteTask(task.task_id);
+                      }}
                     >
                       <Ionicons
                         name="trash-outline"
@@ -707,16 +769,13 @@ export default function BoardDetailScreen() {
                       />
                     </TouchableOpacity>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
 
               {/* Add Task Button */}
-              {status === "To-Do" && !showNewTaskInput && (
+              {status === "To-Do" && (
                 <TouchableOpacity
-                  onPress={() => {
-                    setShowNewTaskInput(true);
-                    setNewTaskStatus(status);
-                  }}
+                  onPress={() => openCreateTaskModal(status)}
                   style={{
                     backgroundColor: COLORS.background,
                     padding: 12,
@@ -725,6 +784,7 @@ export default function BoardDetailScreen() {
                     borderColor: COLORS.border,
                     borderStyle: "dashed",
                     alignItems: "center",
+                    marginTop: 5,
                   }}
                 >
                   <Ionicons name="add" size={20} color={COLORS.textLight} />
@@ -739,88 +799,354 @@ export default function BoardDetailScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
-
-              {/* New Task Input */}
-              {showNewTaskInput && status === newTaskStatus && (
-                <View
-                  style={{
-                    backgroundColor: COLORS.background,
-                    padding: 12,
-                    borderRadius: 8,
-                    borderWidth: 1,
-                    borderColor: COLORS.primary,
-                  }}
-                >
-                  <TextInput
-                    style={{
-                      fontSize: 14,
-                      color: COLORS.text,
-                      marginBottom: 10,
-                      backgroundColor: COLORS.white,
-                      padding: 8,
-                      borderRadius: 6,
-                      borderWidth: 1,
-                      borderColor: COLORS.border,
-                    }}
-                    placeholder="Task title..."
-                    placeholderTextColor={COLORS.textLight}
-                    value={newTaskTitle}
-                    onChangeText={setNewTaskTitle}
-                    autoFocus
-                  />
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    <TouchableOpacity
-                      onPress={handleCreateTask}
-                      style={{
-                        flex: 1,
-                        backgroundColor: COLORS.primary,
-                        padding: 8,
-                        borderRadius: 6,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: COLORS.white,
-                          fontWeight: "600",
-                          fontSize: 12,
-                        }}
-                      >
-                        Add
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setShowNewTaskInput(false);
-                        setNewTaskTitle("");
-                      }}
-                      style={{
-                        flex: 1,
-                        backgroundColor: COLORS.white,
-                        padding: 8,
-                        borderRadius: 6,
-                        alignItems: "center",
-                        borderWidth: 1,
-                        borderColor: COLORS.border,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: COLORS.text,
-                          fontWeight: "600",
-                          fontSize: 12,
-                        }}
-                      >
-                        Cancel
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
             </ScrollView>
           </View>
         ))}
       </ScrollView>
+
+      {/* ENHANCED TASK MODAL */}
+      <Modal
+        visible={showTaskModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeTaskModal}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "flex-end",
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: COLORS.white,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              paddingTop: 20,
+              paddingBottom: 40,
+              paddingHorizontal: 20,
+              maxHeight: "90%",
+            }}
+          >
+            {/* Modal Header */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <Text
+                style={{ fontSize: 20, fontWeight: "bold", color: COLORS.text }}
+              >
+                {isEditingTask ? "Edit Task" : "Create New Task"}
+              </Text>
+              <TouchableOpacity onPress={closeTaskModal}>
+                <Ionicons name="close" size={28} color={COLORS.textLight} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Task Title */}
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: COLORS.text,
+                    marginBottom: 8,
+                    fontWeight: "600",
+                  }}
+                >
+                  Task Title *
+                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: COLORS.background,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                    paddingHorizontal: 15,
+                  }}
+                >
+                  <Ionicons
+                    name="document-text-outline"
+                    size={20}
+                    color={COLORS.textLight}
+                  />
+                  <TextInput
+                    style={{
+                      flex: 1,
+                      paddingVertical: 15,
+                      paddingHorizontal: 10,
+                      fontSize: 16,
+                      color: COLORS.text,
+                    }}
+                    placeholder="Enter task title"
+                    placeholderTextColor={COLORS.textLight}
+                    value={taskTitle}
+                    onChangeText={setTaskTitle}
+                    maxLength={255}
+                  />
+                </View>
+              </View>
+
+              {/* Description */}
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: COLORS.text,
+                    marginBottom: 8,
+                    fontWeight: "600",
+                  }}
+                >
+                  Description
+                </Text>
+                <View
+                  style={{
+                    backgroundColor: COLORS.background,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                    paddingHorizontal: 15,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <TextInput
+                    style={{
+                      fontSize: 16,
+                      color: COLORS.text,
+                      minHeight: 100,
+                      textAlignVertical: "top",
+                    }}
+                    placeholder="Add task description..."
+                    placeholderTextColor={COLORS.textLight}
+                    value={taskDescription}
+                    onChangeText={setTaskDescription}
+                    multiline
+                    numberOfLines={4}
+                  />
+                </View>
+              </View>
+
+              {/* Assignee & Due Date Row */}
+              <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
+                {/* Assignee */}
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: COLORS.text,
+                      marginBottom: 8,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Assignee
+                  </Text>
+                  <View
+                    style={{
+                      backgroundColor: COLORS.background,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: COLORS.border,
+                      paddingHorizontal: 12,
+                    }}
+                  >
+                    <TextInput
+                      style={{
+                        paddingVertical: 12,
+                        fontSize: 14,
+                        color: COLORS.text,
+                      }}
+                      placeholder="Select member"
+                      placeholderTextColor={COLORS.textLight}
+                      value={taskAssignee}
+                      onChangeText={setTaskAssignee}
+                    />
+                  </View>
+                </View>
+
+                {/* Due Date */}
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: COLORS.text,
+                      marginBottom: 8,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Due Date
+                  </Text>
+                  <View
+                    style={{
+                      backgroundColor: COLORS.background,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: COLORS.border,
+                      paddingHorizontal: 12,
+                    }}
+                  >
+                    <TextInput
+                      style={{
+                        paddingVertical: 12,
+                        fontSize: 14,
+                        color: COLORS.text,
+                      }}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={COLORS.textLight}
+                      value={taskDueDate}
+                      onChangeText={setTaskDueDate}
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* Labels */}
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: COLORS.text,
+                    marginBottom: 8,
+                    fontWeight: "600",
+                  }}
+                >
+                  Labels
+                </Text>
+                <View
+                  style={{
+                    backgroundColor: COLORS.background,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                    paddingHorizontal: 15,
+                  }}
+                >
+                  <TextInput
+                    style={{
+                      paddingVertical: 15,
+                      fontSize: 16,
+                      color: COLORS.text,
+                    }}
+                    placeholder="Add labels (comma separated)"
+                    placeholderTextColor={COLORS.textLight}
+                    value={taskLabels}
+                    onChangeText={setTaskLabels}
+                  />
+                </View>
+              </View>
+
+              {/* Status */}
+              <View style={{ marginBottom: 20 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: COLORS.text,
+                    marginBottom: 8,
+                    fontWeight: "600",
+                  }}
+                >
+                  Status
+                </Text>
+                <View
+                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
+                >
+                  {TASK_STATUSES.map((status) => (
+                    <TouchableOpacity
+                      key={status}
+                      onPress={() => setTaskStatus(status)}
+                      style={{
+                        paddingVertical: 10,
+                        paddingHorizontal: 16,
+                        borderRadius: 8,
+                        backgroundColor:
+                          taskStatus === status
+                            ? COLORS.primary
+                            : COLORS.background,
+                        borderWidth: 1,
+                        borderColor:
+                          taskStatus === status
+                            ? COLORS.primary
+                            : COLORS.border,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: "600",
+                          color:
+                            taskStatus === status ? COLORS.white : COLORS.text,
+                        }}
+                      >
+                        {status}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TouchableOpacity
+                  onPress={closeTaskModal}
+                  style={{
+                    flex: 1,
+                    backgroundColor: COLORS.background,
+                    paddingVertical: 15,
+                    borderRadius: 8,
+                    alignItems: "center",
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: COLORS.text,
+                      fontWeight: "600",
+                      fontSize: 16,
+                    }}
+                  >
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleSaveTask}
+                  disabled={isCreatingTask || !taskTitle.trim()}
+                  style={{
+                    flex: 1,
+                    backgroundColor: !taskTitle.trim()
+                      ? COLORS.textLight
+                      : COLORS.primary,
+                    paddingVertical: 15,
+                    borderRadius: 8,
+                    alignItems: "center",
+                    opacity: isCreatingTask ? 0.6 : 1,
+                  }}
+                >
+                  {isCreatingTask ? (
+                    <ActivityIndicator size="small" color={COLORS.white} />
+                  ) : (
+                    <Text
+                      style={{
+                        color: COLORS.white,
+                        fontWeight: "600",
+                        fontSize: 16,
+                      }}
+                    >
+                      {isEditingTask ? "Update Task" : "Create Task"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
