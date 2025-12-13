@@ -159,13 +159,12 @@ export async function createTask(req, res) {
         .json({ message: "Task belongs to Invalid user ID format" });
     }
 
-    if (
-      (assigned_to && typeof assigned_to !== "string") ||
-      assigned_to.trim() === ""
-    ) {
-      return res
-        .status(400)
-        .json({ message: "Task assigned to Invalid user ID format" });
+    if (assigned_to != null) {
+      if (typeof assigned_to !== "string" || assigned_to.trim() === "") {
+        return res
+          .status(400)
+          .json({ message: "Task assigned to Invalid user ID format" });
+      }
     }
 
     // Validate status if provided
