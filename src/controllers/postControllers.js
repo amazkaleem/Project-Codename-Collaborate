@@ -156,7 +156,7 @@ export async function createTask(req, res) {
     if (!boardId || typeof boardId !== "string" || boardId.trim() === "") {
       return res
         .status(400)
-        .json({ message: "Task belongs to Invalid user ID format" });
+        .json({ message: "Task belongs to Invalid board ID format" });
     }
 
     //During development, when trying send createTask() api request, the server would respond with "Internal Server Error"
@@ -267,22 +267,19 @@ export async function createTask(req, res) {
 }
 
 // Add a member to a board (POST /api/boards/:boardId/members)
-export async function addBoardMember(req, res) {
+export async function addBoardMemberByEmail(req, res) {
   try {
     const { boardId } = req.params;
-    const { userId, role = "member" } = req.body;
+    const { email, role = "member" } = req.body;
 
-    if (
-      !boardId ||
-      typeof boardId !== "string" ||
-      boardId.trim() === "" ||
-      !userId ||
-      typeof userId !== "string" ||
-      userId.trim() === ""
-    ) {
-      return res
-        .status(400)
-        .json({ message: "Invalid boardID or userId format" });
+    if (!boardId || typeof boardId !== "string" || boardId.trim() === "") {
+      return res.status(400).json({ message: "Invalid board ID format" });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      return res.status(400).json({ message: "Invalid email format" });
     }
 
     // ensure board exists
@@ -291,26 +288,39 @@ export async function addBoardMember(req, res) {
     if (!board.length)
       return res.status(404).json({ message: "Board not found" });
 
-    // ensure user exists
-    const user = await sql`SELECT user_id FROM users WHERE user_id = ${userId}`;
-    if (!user.length)
-      return res.status(404).json({ message: "User not found" });
+    // Find user by email
+    const user =
+      await sql`SELECT user_id, email, username FROM users WHERE email = ${email}`;
 
-    // insert member, avoid duplicates
+    if (!user.length) {
+      return res.status(404).json({
+        message:
+          "No user found with this email address. Please ask them to create an account first.",
+      });
+    }
+
+    const user_id = user[0].user_id;
+
+    // Check if user is already a member
+    const existingMember = await sql`
+      SELECT * FROM board_members 
+      WHERE board_id = ${boardId} AND user_id = ${user_id}
+    `;
+
+    if (existingMember.length > 0) {
+      return res.status(409).json({
+        message: "This user is already a member of the board",
+      });
+    }
+
+    // insert member
     const inserted = await sql`
       INSERT INTO board_members(board_id, user_id, role)
-      VALUES (${boardId}, ${userId}, ${role})
-      ON CONFLICT (board_id, user_id) DO NOTHING
+      VALUES (${boardId}, ${user_id}, ${role})
       RETURNING *
     `;
 
-    if (!inserted.length) {
-      return res
-        .status(409)
-        .json({ message: "User is already a member of this board" });
-    }
-
-    // increment member_count (no COALESCE since column defaults to 0)
+    // increment member_count
     await sql`
       UPDATE boards
       SET member_count = member_count + 1,
@@ -318,9 +328,16 @@ export async function addBoardMember(req, res) {
       WHERE board_id = ${boardId}
     `;
 
-    res.status(201).json({ message: "Member added", member: inserted[0] });
+    res.status(201).json({
+      message: "Member added successfully",
+      member: {
+        ...inserted[0],
+        email: user[0].email,
+        username: user[0].username,
+      },
+    });
   } catch (error) {
-    console.log("Error adding member:", error);
+    console.log("Error adding member by email:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 }

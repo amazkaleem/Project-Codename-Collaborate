@@ -23,7 +23,7 @@ import {
   createUser,
   createBoard,
   createTask,
-  addBoardMember,
+  addBoardMemberByEmail,
 } from "../controllers/postControllers.js";
 
 const router = express.Router();
@@ -37,7 +37,7 @@ router.get("/tasks/user/:userId", getTasksByUserId);
 router.post("/users", createUser);
 router.post("/boards", createBoard);
 router.post("/tasks", createTask);
-router.post("/boards/:boardId/members", addBoardMember);
+router.post("/boards/:boardId/members", addBoardMemberByEmail);
 
 // DELETE routes
 router.delete("/users/:deleteId", deleteUser);
