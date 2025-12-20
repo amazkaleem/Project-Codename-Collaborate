@@ -83,3 +83,36 @@ export async function getTasksByUserId(req, res) {
     res.status(500).json({ message: "Internal Server Error" });
   }
 }
+
+//GET all members of a board by board ID
+export async function getBoardMembers(req, res) {
+  try {
+    const { boardId } = req.params;
+
+    // Validation
+    if (!boardId || typeof boardId !== "string" || boardId.trim() === "") {
+      return res.status(400).json({ message: "Invalid board ID format" });
+    }
+
+    // Using parameterized query to get members with user details
+    const members = await sql`
+      SELECT
+        bm.user_id,
+        bm.role,
+        bm.joined_at,
+        u.email,
+        u.username,
+        u.full_name,
+        u.avatar_url
+      FROM board_members bm
+      JOIN users u ON bm.user_id = u.user_id
+      WHERE bm.board_id = ${boardId}
+      ORDER BY bm.joined_at ASC
+    `;
+
+    res.status(200).json(members);
+  } catch (error) {
+    console.log("There was an error GETTING board members:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}

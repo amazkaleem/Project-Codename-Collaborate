@@ -11,6 +11,7 @@ import {
   getBoardsByUserId,
   getTasksByBoardId,
   getTasksByUserId,
+  getBoardMembers,
 } from "../controllers/getControllers.js";
 
 import {
@@ -32,6 +33,7 @@ const router = express.Router();
 router.get("/boards/:userId", getBoardsByUserId);
 router.get("/tasks/board/:boardId", getTasksByBoardId);
 router.get("/tasks/user/:userId", getTasksByUserId);
+router.get("/boards/:boardId/members", getBoardMembers);
 
 // POST routes
 router.post("/users", createUser);
