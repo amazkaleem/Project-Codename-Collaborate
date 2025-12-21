@@ -166,7 +166,7 @@ export async function createTask(req, res) {
     //The above line, previously used is flawed. When assigned_to is null, the .trim() on it crashes causing the server to crash
     //And hence, the Server crash. Basis in Javascript is VERY IMPORTANT for backend!
     if (assigned_to != null) {
-      if (typeof assigned_to !== "string" || assigned_to.trim() === "") {
+      if (typeof assigned_to !== "string") {
         return res
           .status(400)
           .json({ message: "Task assigned to Invalid user ID format" });
@@ -253,11 +253,6 @@ export async function createTask(req, res) {
       if (error.constraint === "tasks_created_by_fkey") {
         return res.status(400).json({
           message: "Invalid created_by user ID - user does not exist",
-        });
-      }
-      if (error.constraint === "tasks_assigned_to_fkey") {
-        return res.status(400).json({
-          message: "Invalid assigned_to user ID - user does not exist",
         });
       }
     }
