@@ -12,6 +12,7 @@ import {
   getTasksByBoardId,
   getTasksByUserId,
   getBoardMembers,
+  getUserByClerkId,
 } from "../controllers/getControllers.js";
 
 import {
@@ -34,6 +35,7 @@ router.get("/boards/:userId", getBoardsByUserId);
 router.get("/tasks/board/:boardId", getTasksByBoardId);
 router.get("/tasks/user/:userId", getTasksByUserId);
 router.get("/boards/:boardId/members", getBoardMembers);
+router.get("/users/:userId", getUserByClerkId);
 
 // POST routes
 router.post("/users", createUser);

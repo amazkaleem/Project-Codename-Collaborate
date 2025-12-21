@@ -116,3 +116,30 @@ export async function getBoardMembers(req, res) {
     res.status(500).json({ message: "Internal Server Error" });
   }
 }
+
+//GET user by Clerk user_id (which we store in the database)
+export async function getUserByClerkId(req, res) {
+  try {
+    const { userId } = req.params;
+
+    // Basic validation
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
+      return res.status(400).json({ message: "Invalid user ID format" });
+    }
+
+    const users = await sql`
+      SELECT user_id, username, email, full_name, avatar_url, created_at, last_login, is_active
+      FROM users
+      WHERE user_id = ${userId}
+    `;
+
+    if (!users || users.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json(users[0]);
+  } catch (error) {
+    console.log("There was an error GETTING the user:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}
