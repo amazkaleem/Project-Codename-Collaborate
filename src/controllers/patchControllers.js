@@ -216,11 +216,13 @@ export async function patchTaskByTaskId(req, res) {
       });
     }
 
-    // Validate assigned_to is a valid UUID if provided
-    if (assigned_to && assigned_to !== null) {
-      return res
-        .status(400)
-        .json({ message: "Invalid assigned_to user ID format" });
+    // Validate assigned_to when provided (allow null to clear assignment)
+    if (assigned_to !== undefined && assigned_to !== null) {
+      if (typeof assigned_to !== "string") {
+        return res
+          .status(400)
+          .json({ message: "Invalid assigned_to user ID format" });
+      }
     }
 
     // Additional validation for provided fields
