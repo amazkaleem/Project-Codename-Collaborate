@@ -12,7 +12,7 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useUser } from "@clerk/clerk-expo";
 import { useState, useEffect } from "react";
-import { COLORS } from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import {
   getBoardsByUserId,
@@ -31,6 +31,7 @@ export default function BoardDetailScreen() {
   const { id: boardId } = useLocalSearchParams();
   const { user, isLoaded } = useUser();
   const userId = user?.id;
+  const { colors: COLORS } = useTheme();
 
   const [board, setBoard] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -41,6 +42,10 @@ export default function BoardDetailScreen() {
   const [boardDescription, setBoardDescription] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // With these two lines:
+  const [movingTaskId, setMovingTaskId] = useState(null);
+  const [movingDirection, setMovingDirection] = useState(null); // 'forward' or 'backward'
+
   // Enhanced task modal state
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [isEditingTask, setIsEditingTask] = useState(false);
@@ -48,10 +53,18 @@ export default function BoardDetailScreen() {
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
   const [taskAssignee, setTaskAssignee] = useState("");
-  const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState(null);
   const [taskLabels, setTaskLabels] = useState("");
   const [taskStatus, setTaskStatus] = useState("To-Do");
   const [isCreatingTask, setIsCreatingTask] = useState(false);
+
+  //There was another error with creating/updating tasks because Claude Ai
+  //had modified the previous working version
+  //This time the error came with the following:
+  //const [taskDueDate, setTaskDueDate] = useState("");
+  //The "due_date "TIMESTAMP WITH TIME ZONE" field of the database cannot
+  //be set an empty string. It can either be set a timestamp or a null. Hence,
+  //throwing an "Internal Server Error" upon an empty string
 
   // Load board and tasks
   const loadBoardData = async () => {
@@ -158,9 +171,9 @@ export default function BoardDetailScreen() {
     setTaskTitle("");
     setTaskDescription("");
     setTaskAssignee("");
-    setTaskDueDate("");
+    setTaskDueDate(null);
     setTaskLabels("");
-    setTaskStatus(status);
+    setTaskStatus("To-Do"); // Always default to "To-Do" for new tasks
     setShowTaskModal(true);
   };
 
@@ -171,7 +184,7 @@ export default function BoardDetailScreen() {
     setTaskTitle(task.title);
     setTaskDescription(task.description || "");
     setTaskAssignee(task.assigned_to || "");
-    setTaskDueDate(task.due_date || "");
+    setTaskDueDate(task.due_date || null);
     setTaskLabels(task.tags ? task.tags.join(", ") : "");
     setTaskStatus(task.status);
     setShowTaskModal(true);
@@ -185,7 +198,7 @@ export default function BoardDetailScreen() {
     setTaskTitle("");
     setTaskDescription("");
     setTaskAssignee("");
-    setTaskDueDate("");
+    setTaskDueDate(null);
     setTaskLabels("");
     setTaskStatus("To-Do");
   };
@@ -208,27 +221,31 @@ export default function BoardDetailScreen() {
 
     setIsCreatingTask(true);
     try {
-      const taskData = {
-        title: taskTitle.trim(),
-        description: taskDescription.trim() || null,
-        assigned_to: taskAssignee.trim() || null,
-        due_date: taskDueDate.trim() || null,
-        tags: tagsArray.length > 0 ? tagsArray : null,
-        status: taskStatus,
-      };
-
       if (isEditingTask && currentTaskId) {
         // Update existing task
         console.log("📝 Updating task:", currentTaskId);
-        await updateTask(currentTaskId, taskData);
+        const updateData = {
+          title: taskTitle.trim(),
+          description: taskDescription.trim(),
+          assigned_to: taskAssignee.trim() || null,
+          due_date: taskDueDate,
+          tags: tagsArray.length > 0 ? tagsArray : null,
+          status: taskStatus,
+        };
+        await updateTask(currentTaskId, updateData);
         Alert.alert("Success", "Task updated successfully");
       } else {
         // Create new task
-        console.log("📝 Creating task:", taskData);
+        console.log("📝 Creating task");
         await createTask({
-          ...taskData,
+          title: taskTitle.trim(),
           boardId: boardId,
           created_by: userId,
+          status: taskStatus,
+          description: taskDescription.trim(),
+          assigned_to: taskAssignee.trim() || null,
+          due_date: taskDueDate,
+          tags: tagsArray,
         });
         Alert.alert("Success", "Task created successfully");
       }
@@ -246,11 +263,14 @@ export default function BoardDetailScreen() {
     }
   };
 
-  // Update task status
-  const handleTaskStatusChange = async (taskId, newStatus) => {
+  // Update task status with loading state
+  const handleTaskStatusChange = async (taskId, newStatus, direction) => {
+    setMovingTaskId(taskId); // Set loading state
+    setMovingDirection(direction); // Set direction ('forward' or 'backward')
     try {
       console.log("📝 Updating task status:", { taskId, newStatus });
       await updateTask(taskId, { status: newStatus });
+      // Update local state immediately for better UX
       setTasks((prevTasks) =>
         prevTasks.map((task) =>
           task.task_id === taskId ? { ...task, status: newStatus } : task
@@ -260,7 +280,11 @@ export default function BoardDetailScreen() {
     } catch (error) {
       console.error("❌ Error updating task:", error);
       Alert.alert("Error", error.message || "Failed to update task status");
+      // Reload to sync state
       await loadBoardData();
+    } finally {
+      setMovingTaskId(null); // Clear loading state
+      setMovingDirection(null); // Clear direction
     }
   };
 
@@ -517,11 +541,25 @@ export default function BoardDetailScreen() {
               </Text>
             </View>
           </View>
-          {isOwner && (
-            <TouchableOpacity onPress={handleDeleteBoard}>
-              <Ionicons name="trash-outline" size={20} color="#ef4444" />
+
+          {/* Action Buttons on Right */}
+          <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
+            {/* Team Members Icon */}
+            <TouchableOpacity onPress={handleManageMembers}>
+              <Ionicons
+                name="people-outline"
+                size={22}
+                color={COLORS.primary}
+              />
             </TouchableOpacity>
-          )}
+
+            {/* Delete Board Icon (only for owner) */}
+            {isOwner && (
+              <TouchableOpacity onPress={handleDeleteBoard}>
+                <Ionicons name="trash-outline" size={20} color="#ef4444" />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </View>
 
@@ -710,22 +748,33 @@ export default function BoardDetailScreen() {
                             const currentIndex = TASK_STATUSES.indexOf(status);
                             handleTaskStatusChange(
                               task.task_id,
-                              TASK_STATUSES[currentIndex - 1]
+                              TASK_STATUSES[currentIndex - 1],
+                              "backward"
                             );
                           }}
+                          disabled={movingTaskId === task.task_id}
                           style={{
                             backgroundColor: COLORS.white,
                             padding: 6,
                             borderRadius: 6,
                             borderWidth: 1,
                             borderColor: COLORS.border,
+                            opacity: movingTaskId === task.task_id ? 0.6 : 1,
                           }}
                         >
-                          <Ionicons
-                            name="arrow-back"
-                            size={14}
-                            color={COLORS.text}
-                          />
+                          {movingTaskId === task.task_id &&
+                          movingDirection === "backward" ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={COLORS.text}
+                            />
+                          ) : (
+                            <Ionicons
+                              name="arrow-back"
+                              size={14}
+                              color={COLORS.text}
+                            />
+                          )}
                         </TouchableOpacity>
                       )}
                       {status !== "Done" && (
@@ -735,22 +784,33 @@ export default function BoardDetailScreen() {
                             const currentIndex = TASK_STATUSES.indexOf(status);
                             handleTaskStatusChange(
                               task.task_id,
-                              TASK_STATUSES[currentIndex + 1]
+                              TASK_STATUSES[currentIndex + 1],
+                              "forward"
                             );
                           }}
+                          disabled={movingTaskId === task.task_id}
                           style={{
                             backgroundColor: COLORS.white,
                             padding: 6,
                             borderRadius: 6,
                             borderWidth: 1,
                             borderColor: COLORS.border,
+                            opacity: movingTaskId === task.task_id ? 0.6 : 1,
                           }}
                         >
-                          <Ionicons
-                            name="arrow-forward"
-                            size={14}
-                            color={COLORS.text}
-                          />
+                          {movingTaskId === task.task_id &&
+                          movingDirection === "forward" ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={COLORS.text}
+                            />
+                          ) : (
+                            <Ionicons
+                              name="arrow-forward"
+                              size={14}
+                              color={COLORS.text}
+                            />
+                          )}
                         </TouchableOpacity>
                       )}
                     </View>
@@ -761,6 +821,7 @@ export default function BoardDetailScreen() {
                         e.stopPropagation();
                         handleDeleteTask(task.task_id);
                       }}
+                      disabled={movingTaskId === task.task_id}
                     >
                       <Ionicons
                         name="trash-outline"
@@ -1041,54 +1102,58 @@ export default function BoardDetailScreen() {
                 </View>
               </View>
 
-              {/* Status */}
-              <View style={{ marginBottom: 20 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: COLORS.text,
-                    marginBottom: 8,
-                    fontWeight: "600",
-                  }}
-                >
-                  Status
-                </Text>
-                <View
-                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
-                >
-                  {TASK_STATUSES.map((status) => (
-                    <TouchableOpacity
-                      key={status}
-                      onPress={() => setTaskStatus(status)}
-                      style={{
-                        paddingVertical: 10,
-                        paddingHorizontal: 16,
-                        borderRadius: 8,
-                        backgroundColor:
-                          taskStatus === status
-                            ? COLORS.primary
-                            : COLORS.background,
-                        borderWidth: 1,
-                        borderColor:
-                          taskStatus === status
-                            ? COLORS.primary
-                            : COLORS.border,
-                      }}
-                    >
-                      <Text
+              {/* Status - Only show when editing */}
+              {isEditingTask && (
+                <View style={{ marginBottom: 20 }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: COLORS.text,
+                      marginBottom: 8,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Status
+                  </Text>
+                  <View
+                    style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
+                  >
+                    {TASK_STATUSES.map((status) => (
+                      <TouchableOpacity
+                        key={status}
+                        onPress={() => setTaskStatus(status)}
                         style={{
-                          fontSize: 14,
-                          fontWeight: "600",
-                          color:
-                            taskStatus === status ? COLORS.white : COLORS.text,
+                          paddingVertical: 10,
+                          paddingHorizontal: 16,
+                          borderRadius: 8,
+                          backgroundColor:
+                            taskStatus === status
+                              ? COLORS.primary
+                              : COLORS.background,
+                          borderWidth: 1,
+                          borderColor:
+                            taskStatus === status
+                              ? COLORS.primary
+                              : COLORS.border,
                         }}
                       >
-                        {status}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: "600",
+                            color:
+                              taskStatus === status
+                                ? COLORS.white
+                                : COLORS.text,
+                          }}
+                        >
+                          {status}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
-              </View>
+              )}
 
               {/* Action Buttons */}
               <View style={{ flexDirection: "row", gap: 10 }}>

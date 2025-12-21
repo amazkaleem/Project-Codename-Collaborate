@@ -6,11 +6,12 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
-import { COLORS } from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useState } from "react";
 
 export const SignOutButton = () => {
   const { signOut } = useClerk();
+  const { colors: COLORS } = useTheme();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSignOut = async () => {
@@ -28,6 +29,25 @@ export const SignOutButton = () => {
     }
   };
 
+  // Create dynamic styles based on current theme
+  const styles = StyleSheet.create({
+    button: {
+      backgroundColor: COLORS.primary,
+      paddingVertical: 12,
+      paddingHorizontal: 24,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 16,
+      minHeight: 48,
+    },
+    buttonText: {
+      color: COLORS.white,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+  });
+
   return (
     <TouchableOpacity
       onPress={handleSignOut}
@@ -43,21 +63,3 @@ export const SignOutButton = () => {
     </TouchableOpacity>
   );
 };
-
-const styles = StyleSheet.create({
-  button: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 16,
-    minHeight: 48,
-  },
-  buttonText: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});

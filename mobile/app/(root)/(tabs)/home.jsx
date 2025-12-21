@@ -14,15 +14,18 @@ import { useUser } from "@clerk/clerk-expo";
 import { useEffect, useState } from "react";
 import { useBoards } from "@/hooks/useBoards";
 import { useTasks } from "@/hooks/useTasks";
-import { COLORS } from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
+import { getUserByClerkId } from "@/services/api";
 
 export default function HomeScreen() {
   const router = useRouter();
   const { user, isLoaded } = useUser();
   const userId = user?.id;
+  const { colors: COLORS } = useTheme();
 
   const [refreshing, setRefreshing] = useState(false);
+  const [dbUsername, setDbUsername] = useState("");
 
   // Create board modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -52,6 +55,24 @@ export default function HomeScreen() {
     }
   }, [userId, loadBoards, loadTasks]);
 
+  // Load database username
+  useEffect(() => {
+    const loadUsername = async () => {
+      if (userId) {
+        try {
+          const dbUser = await getUserByClerkId(userId);
+          if (dbUser && dbUser.username) {
+            setDbUsername(dbUser.username);
+          }
+        } catch (error) {
+          console.error("Error loading username:", error);
+        }
+      }
+    };
+
+    loadUsername();
+  }, [userId]);
+
   // Refresh handler
   const onRefresh = async () => {
     setRefreshing(true);
@@ -79,7 +100,7 @@ export default function HomeScreen() {
       await createNewBoard({
         board_name: newBoardName.trim(),
         description: newBoardDescription.trim() || null,
-        created_by: userId
+        created_by: userId,
       });
 
       // Clear form and close modal
@@ -169,7 +190,9 @@ export default function HomeScreen() {
                 marginTop: 2,
               }}
             >
-              {user?.emailAddresses[0]?.emailAddress.split("@")[0] || "User"}
+              {dbUsername ||
+                user?.emailAddresses[0]?.emailAddress.split("@")[0] ||
+                "User"}
             </Text>
           </View>
           <TouchableOpacity

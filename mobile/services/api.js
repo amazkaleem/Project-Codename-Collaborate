@@ -61,6 +61,12 @@ export const deleteUser = async (userId) => {
   });
 };
 
+export const getUserByClerkId = async (userId) => {
+  return apiRequest(`users/${userId}`, {
+    method: "GET",
+  });
+};
+
 // ==================== BOARD ENDPOINTS ====================
 
 export const getBoardsByUserId = async (userId) => {
@@ -89,7 +95,7 @@ export const deleteBoard = async (boardId) => {
   });
 };
 
-export const addBoardMember = async (boardId, memberData) => {
+export const addBoardMemberByEmail = async (boardId, memberData) => {
   return apiRequest(`boards/${boardId}/members`, {
     method: "POST",
     body: JSON.stringify(memberData),
@@ -99,6 +105,12 @@ export const addBoardMember = async (boardId, memberData) => {
 export const removeBoardMember = async (boardId, userId) => {
   return apiRequest(`boards/${boardId}/members/${userId}`, {
     method: "DELETE",
+  });
+};
+
+export const getBoardMembers = async (boardId) => {
+  return apiRequest(`boards/${boardId}/members`, {
+    method: "GET",
   });
 };
 

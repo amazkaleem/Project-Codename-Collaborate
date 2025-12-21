@@ -1,8 +1,10 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { COLORS } from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function TabLayout() {
+  const { colors: COLORS } = useTheme();
+
   return (
     <Tabs
       screenOptions={{
@@ -37,7 +39,6 @@ export default function TabLayout() {
           ),
         }}
       />
-
       {/* EXPLORE TAB */}
       <Tabs.Screen
         name="explore"
@@ -52,7 +53,6 @@ export default function TabLayout() {
           ),
         }}
       />
-
       {/* PROFILE TAB */}
       <Tabs.Screen
         name="profile"

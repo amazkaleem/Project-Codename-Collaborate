@@ -13,19 +13,22 @@ import { useState, useEffect } from "react";
 import { useBoards } from "@/hooks/useBoards";
 import { useTasks } from "@/hooks/useTasks";
 import { SignOutButton } from "@/components/SignOutButton";
-import { COLORS } from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
+import { THEME_NAMES } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
-import { updateUser, deleteUser } from "@/services/api";
+import { updateUser, deleteUser, getUserByClerkId } from "@/services/api";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, isLoaded } = useUser();
   const userId = user?.id;
+  const { currentTheme, colors: COLORS, changeTheme } = useTheme();
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [username, setUsername] = useState("");
   const [fullName, setFullName] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [dbUsername, setDbUsername] = useState("");
 
   const { boards, loadData: loadBoards } = useBoards(userId);
   const { tasks, loadData: loadTasks } = useTasks(userId);
@@ -39,17 +42,38 @@ export default function ProfileScreen() {
     }
   }, [userId, loadBoards, loadTasks]);
 
-  // Initialize form with user data
+  // Initialize form with user data (prefer database username)
   useEffect(() => {
-    if (user) {
-      setUsername(
-        user.username ||
-          user.emailAddresses[0]?.emailAddress.split("@")[0] ||
-          ""
-      );
-      setFullName(user.fullName || "");
-    }
-  }, [user]);
+    const loadUserData = async () => {
+      if (user) {
+        try {
+          const dbUser = await getUserByClerkId(userId);
+          if (dbUser && dbUser.username) {
+            setDbUsername(dbUser.username);
+            setUsername(dbUser.username);
+            setFullName(dbUser.full_name || user.fullName || "");
+          } else {
+            setUsername(
+              user.username ||
+                user.emailAddresses[0]?.emailAddress.split("@")[0] ||
+                ""
+            );
+            setFullName(user.fullName || "");
+          }
+        } catch (error) {
+          console.error("Error loading user data:", error);
+          setUsername(
+            user.username ||
+              user.emailAddresses[0]?.emailAddress.split("@")[0] ||
+              ""
+          );
+          setFullName(user.fullName || "");
+        }
+      }
+    };
+
+    loadUserData();
+  }, [user, userId]);
 
   // Calculate stats
   const totalBoards = boards?.length || 0;
@@ -76,19 +100,14 @@ export default function ProfileScreen() {
     setIsUpdating(true);
     try {
       console.log("📝 Updating user profile:", { username, fullName });
-
-      // Update user in backend
+      //The "null" could be where I am getting the error
       await updateUser(userId, {
         username: username.trim(),
         full_name: fullName.trim() || null,
-      }); // We remove `username` here to stop the Clerk error.
+      });
 
-      // --- STEP 2: Update Clerk user (Only use accepted fields)
-      //We removed the "username" field to stop Clerk error
       await user.update({
-        // firstName/lastName map to the user's "Full Name" in Clerk
-        ...(fullName.trim() && { firstName: fullName.trim() }), // If you want to clear the name:
-        // firstName: fullName.trim() || null
+        ...(fullName.trim() && { firstName: fullName.trim() }),
       });
 
       Alert.alert("Success", "Profile updated successfully");
@@ -117,19 +136,12 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               console.log("🗑️ Deleting user account:", userId);
-
-              // Delete from backend
               await deleteUser(userId);
-
-              // Delete from Clerk
               await user.delete();
-
               Alert.alert(
                 "Account Deleted",
                 "Your account has been permanently deleted"
               );
-
-              // Clerk will automatically redirect to sign-in
             } catch (error) {
               console.error("❌ Error deleting account:", error);
               Alert.alert("Error", error.message || "Failed to delete account");
@@ -138,6 +150,11 @@ export default function ProfileScreen() {
         },
       ]
     );
+  };
+
+  // Handle theme change
+  const handleThemeChange = (themeName) => {
+    changeTheme(themeName);
   };
 
   // Show loading if Clerk hasn't loaded yet
@@ -199,7 +216,7 @@ export default function ProfileScreen() {
             marginBottom: 5,
           }}
         >
-          {user?.fullName || user?.username || "User"}
+          {dbUsername || user?.fullName || user?.username || "User"}
         </Text>
         <Text style={{ fontSize: 14, color: COLORS.white, opacity: 0.9 }}>
           {user?.emailAddresses[0]?.emailAddress}
@@ -320,6 +337,102 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* THEME SELECTOR SECTION */}
+      <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
+        <View
+          style={{
+            backgroundColor: COLORS.white,
+            borderRadius: 12,
+            padding: 20,
+            borderWidth: 1,
+            borderColor: COLORS.border,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginBottom: 15,
+            }}
+          >
+            <Ionicons
+              name="color-palette-outline"
+              size={24}
+              color={COLORS.primary}
+            />
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "bold",
+                color: COLORS.text,
+                marginLeft: 10,
+              }}
+            >
+              Theme
+            </Text>
+          </View>
+
+          <Text
+            style={{ fontSize: 14, color: COLORS.textLight, marginBottom: 12 }}
+          >
+            Choose your preferred color theme
+          </Text>
+
+          {/* Theme Options */}
+          <View style={{ gap: 10 }}>
+            {Object.entries(THEME_NAMES).map(([key, name]) => (
+              <TouchableOpacity
+                key={key}
+                onPress={() => handleThemeChange(key)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  backgroundColor:
+                    currentTheme === key ? COLORS.background : COLORS.white,
+                  padding: 15,
+                  borderRadius: 8,
+                  borderWidth: 2,
+                  borderColor:
+                    currentTheme === key ? COLORS.primary : COLORS.border,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <View
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 16,
+                      backgroundColor:
+                        require("@/constants/colors").THEMES[key].primary,
+                      marginRight: 12,
+                      borderWidth: 2,
+                      borderColor: COLORS.border,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: currentTheme === key ? "600" : "400",
+                      color: COLORS.text,
+                    }}
+                  >
+                    {name}
+                  </Text>
+                </View>
+                {currentTheme === key && (
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={COLORS.primary}
+                  />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </View>
+
       {/* PROFILE SECTION */}
       <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
         <View
@@ -415,9 +528,7 @@ export default function ProfileScreen() {
               />
             ) : (
               <Text style={{ fontSize: 16, color: COLORS.text }}>
-                {user?.username ||
-                  user?.emailAddresses[0]?.emailAddress.split("@")[0] ||
-                  "Not set"}
+                {dbUsername || username || "Not set"}
               </Text>
             )}
           </View>
@@ -479,7 +590,6 @@ export default function ProfileScreen() {
         >
           Activity Overview
         </Text>
-
         <View
           style={{
             backgroundColor: COLORS.white,

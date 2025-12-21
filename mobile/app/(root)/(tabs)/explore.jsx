@@ -11,13 +11,14 @@ import { useRouter } from "expo-router";
 import { useUser } from "@clerk/clerk-expo";
 import { useState, useEffect } from "react";
 import { useBoards } from "@/hooks/useBoards";
-import { COLORS } from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function ExploreScreen() {
   const router = useRouter();
   const { user, isLoaded } = useUser();
   const userId = user?.id;
+  const { colors: COLORS } = useTheme();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredBoards, setFilteredBoards] = useState([]);

@@ -10,11 +10,12 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useUser } from "@clerk/clerk-expo";
 import { useState, useEffect } from "react";
-import { COLORS } from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import {
   getBoardsByUserId,
-  addBoardMember,
+  getBoardMembers,
+  addBoardMemberByEmail,
   removeBoardMember,
 } from "@/services/api";
 
@@ -23,12 +24,13 @@ export default function BoardMembersScreen() {
   const { id: boardId } = useLocalSearchParams();
   const { user, isLoaded } = useUser();
   const userId = user?.id;
+  const { colors: COLORS } = useTheme();
 
   const [board, setBoard] = useState(null);
   const [members, setMembers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddMember, setShowAddMember] = useState(false);
-  const [newMemberUserId, setNewMemberUserId] = useState("");
+  const [newMemberEmail, setNewMemberEmail] = useState("");
   const [newMemberRole, setNewMemberRole] = useState("member");
   const [isAdding, setIsAdding] = useState(false);
 
@@ -39,7 +41,6 @@ export default function BoardMembersScreen() {
     try {
       console.log("📥 Loading board members for board:", boardId);
 
-      // Fetch all user's boards to find this specific board
       const userBoards = await getBoardsByUserId(userId);
       const currentBoard = userBoards.find((b) => b.board_id === boardId);
 
@@ -51,21 +52,11 @@ export default function BoardMembersScreen() {
 
       setBoard(currentBoard);
 
-      // Note: In a real implementation, you would fetch the actual member list
-      // from a dedicated endpoint. For now, we'll show a placeholder message.
-      // The backend supports this via board_members table, but we need a GET endpoint.
+      // Fetch actual board members from backend
+      const boardMembers = await getBoardMembers(boardId);
+      setMembers(boardMembers);
 
-      // Mock members data structure (replace with actual API call when endpoint exists)
-      setMembers([
-        {
-          user_id: currentBoard.created_by,
-          role: "admin",
-          email: user?.emailAddresses[0]?.emailAddress || "Unknown",
-          joined_at: currentBoard.created_at || new Date().toISOString(),
-        },
-      ]);
-
-      console.log("✅ Board members loaded");
+      console.log("✅ Board members loaded:", boardMembers.length);
     } catch (error) {
       console.error("❌ Error loading board members:", error);
       Alert.alert("Error", "Failed to load board members");
@@ -78,33 +69,32 @@ export default function BoardMembersScreen() {
     loadBoardMembers();
   }, [userId, boardId]);
 
-  // Add member
+  // Add member by email
   const handleAddMember = async () => {
-    if (!newMemberUserId.trim()) {
-      return Alert.alert("Error", "Please enter a valid user ID");
+    if (!newMemberEmail.trim()) {
+      return Alert.alert("Error", "Please enter a valid email address");
     }
 
-    // Basic UUID validation
-    const uuidRegex =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(newMemberUserId.trim())) {
-      return Alert.alert("Error", "Invalid user ID format");
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newMemberEmail.trim())) {
+      return Alert.alert("Error", "Invalid email format");
     }
 
     setIsAdding(true);
     try {
-      console.log("➕ Adding member:", {
-        userId: newMemberUserId,
+      console.log("➕ Adding member by email:", {
+        email: newMemberEmail,
         role: newMemberRole,
       });
 
-      await addBoardMember(boardId, {
-        user_id: newMemberUserId.trim(),
+      const result = await addBoardMemberByEmail(boardId, {
+        email: newMemberEmail.trim(),
         role: newMemberRole,
       });
 
-      Alert.alert("Success", "Member added successfully");
-      setNewMemberUserId("");
+      Alert.alert("Success", result.message || "Member added successfully");
+      setNewMemberEmail("");
       setNewMemberRole("member");
       setShowAddMember(false);
       await loadBoardMembers();
@@ -118,7 +108,6 @@ export default function BoardMembersScreen() {
 
   // Remove member
   const handleRemoveMember = (memberId, memberEmail) => {
-    // Prevent removing yourself if you're the only member
     if (members.length === 1) {
       return Alert.alert(
         "Cannot Remove",
@@ -137,9 +126,7 @@ export default function BoardMembersScreen() {
           onPress: async () => {
             try {
               console.log("➖ Removing member:", memberId);
-
               await removeBoardMember(boardId, memberId);
-
               Alert.alert("Success", "Member removed successfully");
               await loadBoardMembers();
             } catch (error) {
@@ -193,7 +180,6 @@ export default function BoardMembersScreen() {
     );
   }
 
-  // Check if user is board owner/admin
   const isAdmin =
     board.created_by === userId ||
     members.find((m) => m.user_id === userId && m.role === "admin");
@@ -244,7 +230,6 @@ export default function BoardMembersScreen() {
             </TouchableOpacity>
           )}
         </View>
-
         <Text style={{ fontSize: 14, color: COLORS.textLight }}>
           {board.board_name}
         </Text>
@@ -271,12 +256,12 @@ export default function BoardMembersScreen() {
             Add New Member
           </Text>
 
-          {/* User ID Input */}
+          {/* Email Input */}
           <View style={{ marginBottom: 12 }}>
             <Text
               style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 5 }}
             >
-              User ID *
+              Email Address *
             </Text>
             <View
               style={{
@@ -290,7 +275,7 @@ export default function BoardMembersScreen() {
               }}
             >
               <Ionicons
-                name="person-outline"
+                name="mail-outline"
                 size={20}
                 color={COLORS.textLight}
               />
@@ -301,14 +286,14 @@ export default function BoardMembersScreen() {
                   paddingHorizontal: 10,
                   fontSize: 14,
                   color: COLORS.text,
-                  fontFamily: "monospace",
                 }}
-                placeholder="Enter user UUID..."
+                placeholder="Enter user's email"
                 placeholderTextColor={COLORS.textLight}
-                value={newMemberUserId}
-                onChangeText={setNewMemberUserId}
+                value={newMemberEmail}
+                onChangeText={setNewMemberEmail}
                 autoCapitalize="none"
                 autoCorrect={false}
+                keyboardType="email-address"
               />
             </View>
           </View>
@@ -349,7 +334,6 @@ export default function BoardMembersScreen() {
                   Member
                 </Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 onPress={() => setNewMemberRole("admin")}
                 style={{
@@ -381,7 +365,7 @@ export default function BoardMembersScreen() {
             </View>
           </View>
 
-          {/* Action Buttons */}
+          {/* Action Button */}
           <TouchableOpacity
             onPress={handleAddMember}
             disabled={isAdding}
@@ -404,7 +388,7 @@ export default function BoardMembersScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Info Note */}
+          {/* Info Note - UPDATED MESSAGE */}
           <View
             style={{
               backgroundColor: "#fef3c7",
@@ -423,8 +407,8 @@ export default function BoardMembersScreen() {
             <Text
               style={{ fontSize: 12, color: "#92400e", marginLeft: 8, flex: 1 }}
             >
-              You need the user&apos;s UUID to add them. Users can find their
-              UUID in their profile settings.
+              You need the user&apos;s email to add them. Users can find their
+              email in their profile settings.
             </Text>
           </View>
         </View>
@@ -519,7 +503,6 @@ export default function BoardMembersScreen() {
                       </View>
                     )}
                   </View>
-
                   <View
                     style={{
                       flexDirection: "row",
@@ -550,7 +533,6 @@ export default function BoardMembersScreen() {
                         {item.role.toUpperCase()}
                       </Text>
                     </View>
-
                     {/* Owner Badge */}
                     {isBoardOwner && (
                       <View
@@ -573,7 +555,6 @@ export default function BoardMembersScreen() {
                       </View>
                     )}
                   </View>
-
                   <Text
                     style={{
                       fontSize: 11,
@@ -634,7 +615,7 @@ export default function BoardMembersScreen() {
         }
       />
 
-      {/* USER ID DISPLAY (For easy sharing) */}
+      {/* USER EMAIL DISPLAY */}
       <View
         style={{
           backgroundColor: COLORS.white,
@@ -646,7 +627,7 @@ export default function BoardMembersScreen() {
         <Text
           style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 5 }}
         >
-          Your User ID (share this to be added to boards)
+          Your Email (share this to be added to boards)
         </Text>
         <View
           style={{
@@ -659,13 +640,13 @@ export default function BoardMembersScreen() {
         >
           <Text
             style={{
-              fontSize: 12,
+              fontSize: 14,
               color: COLORS.text,
-              fontFamily: "monospace",
+              fontWeight: "500",
             }}
             selectable
           >
-            {userId}
+            {user?.emailAddresses[0]?.emailAddress || "Not available"}
           </Text>
         </View>
       </View>
