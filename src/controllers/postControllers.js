@@ -133,6 +133,7 @@ export async function createTask(req, res) {
       due_date,
       tags,
       status,
+      priority
     } = req.body;
 
     // Input validation - check for required fields
@@ -181,6 +182,14 @@ export async function createTask(req, res) {
       });
     }
 
+        // Validate priority if provided
+    const validPriorities = ["High", "Medium", "Low"];
+    if (priority && !validPriorities.includes(priority)) {
+      return res.status(400).json({
+        message: `Invalid priority. Must be one of: ${validPriorities.join(", ")}`,
+      });
+    }
+
     // Additional validation - check field lengths
     if (title.length > 255) {
       return res.status(400).json({
@@ -204,7 +213,8 @@ export async function createTask(req, res) {
         assigned_to,
         due_date,
         tags,
-        status
+        status,
+        priority
       )
       VALUES (
         ${title},
@@ -214,12 +224,13 @@ export async function createTask(req, res) {
         ${assigned_to},
         ${due_date},
         ${tags},
-        ${status}
+        ${status},
+        ${priority}
       )
       RETURNING *
     `;
 
-    // Increment task_count on the board (keep board metadata in sync)
+    // Increment task_count o n the board (keep board metadata in sync)
     const updatedBoard = await sql`
       UPDATE boards
       SET task_count = task_count + 1,

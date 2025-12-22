@@ -186,8 +186,15 @@ export async function patchBoardByBoardId(req, res) {
 export async function patchTaskByTaskId(req, res) {
   try {
     const { taskId } = req.params;
-    const { title, description, assigned_to, due_date, tags, status } =
-      req.body;
+    const {
+      title,
+      description,
+      assigned_to,
+      due_date,
+      tags,
+      status,
+      priority,
+    } = req.body;
 
     // Validation
     if (!taskId || typeof taskId !== "string" || taskId.trim() === "") {
@@ -201,7 +208,8 @@ export async function patchTaskByTaskId(req, res) {
       !assigned_to &&
       !due_date &&
       !tags &&
-      !status
+      !status &&
+      !priority
     ) {
       return res.status(400).json({
         message: "At least one field must be provided for update",
@@ -213,6 +221,16 @@ export async function patchTaskByTaskId(req, res) {
     if (status && !validStatuses.includes(status)) {
       return res.status(400).json({
         message: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
+      });
+    }
+
+    // Validate priority if provided
+    const validPriorities = ["High", "Medium", "Low"];
+    if (priority && !validPriorities.includes(priority)) {
+      return res.status(400).json({
+        message: `Invalid priority. Must be one of: ${validPriorities.join(
+          ", "
+        )}`,
       });
     }
 
@@ -292,6 +310,14 @@ export async function patchTaskByTaskId(req, res) {
         await sql`
           UPDATE tasks
           SET status = ${status}, updated_at = CURRENT_TIMESTAMP
+          WHERE task_id = ${taskId}
+        `;
+      }
+
+      if (priority !== undefined) {
+        await sql`
+          UPDATE tasks
+          SET priority = ${priority}, updated_at = CURRENT_TIMESTAMP
           WHERE task_id = ${taskId}
         `;
       }
