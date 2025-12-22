@@ -133,7 +133,7 @@ export async function createTask(req, res) {
       due_date,
       tags,
       status,
-      priority
+      priority,
     } = req.body;
 
     // Input validation - check for required fields
@@ -182,11 +182,13 @@ export async function createTask(req, res) {
       });
     }
 
-        // Validate priority if provided
-    const validPriorities = ["High", "Medium", "Low"];
+    // Validate priority if provided
+    const validPriorities = ["high", "medium", "low"];
     if (priority && !validPriorities.includes(priority)) {
       return res.status(400).json({
-        message: `Invalid priority. Must be one of: ${validPriorities.join(", ")}`,
+        message: `Invalid priority. Must be one of: ${validPriorities.join(
+          ", "
+        )}`,
       });
     }
 

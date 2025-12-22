@@ -225,7 +225,7 @@ export async function patchTaskByTaskId(req, res) {
     }
 
     // Validate priority if provided
-    const validPriorities = ["High", "Medium", "Low"];
+    const validPriorities = ["high", "medium", "low"];
     if (priority && !validPriorities.includes(priority)) {
       return res.status(400).json({
         message: `Invalid priority. Must be one of: ${validPriorities.join(
