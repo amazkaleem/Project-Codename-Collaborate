@@ -61,7 +61,6 @@ export default function BoardDetailScreen() {
 
   // Add these new state variables after existing task modal states
   const [boardMembers, setBoardMembers] = useState([]);
-  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const [selectedAssignee, setSelectedAssignee] = useState(null); // Stores full user object
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
 
@@ -246,12 +245,11 @@ export default function BoardDetailScreen() {
     setCurrentTaskId(null);
     setTaskTitle("");
     setTaskDescription("");
-    // setSelectedAssignee(null); -- Changed from setTaskAssignee("")
+    setSelectedAssignee(null);
     setTaskDueDate(null);
     setTaskLabels("");
     setTaskStatus("To-Do");
     setTaskPriority("medium");
-    setShowAssigneeDropdown(false); // Close dropdown
     setBoardMembers([]); // Clear members
   };
 
