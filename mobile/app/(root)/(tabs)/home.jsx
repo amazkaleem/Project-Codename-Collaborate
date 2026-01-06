@@ -224,7 +224,6 @@ export default function HomeScreen() {
         contentContainerStyle={{ padding: 20 }}
         ListHeaderComponent={
           <>
-
             {/* UPCOMING TASKS SECTION */}
             {upcomingTasks.length > 0 && (
               <View style={{ marginBottom: 20 }}>
@@ -306,7 +305,18 @@ export default function HomeScreen() {
                           marginLeft: 10,
                         }}
                       >
-                        Due: {new Date(task.due_date).toLocaleDateString()}
+                        Due:{" "}
+                        {new Date(task.due_date).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}{" "}
+                        at{" "}
+                        {new Date(task.due_date).toLocaleTimeString("en-US", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                        })}
                       </Text>
                     </View>
                   </TouchableOpacity>

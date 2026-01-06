@@ -24,6 +24,8 @@ import {
   updateTask,
   deleteTask,
 } from "@/services/api";
+import AssigneeSelector from "@/components/AssigneeSelector";
+import DeadlinePicker from "@/components/DeadlinePicker";
 
 const TASK_STATUSES = ["To-Do", "In-Progress", "In-Review", "Done"];
 
@@ -63,6 +65,8 @@ export default function BoardDetailScreen() {
   const [boardMembers, setBoardMembers] = useState([]);
   const [selectedAssignee, setSelectedAssignee] = useState(null); // Stores full user object
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [showAssigneeSelector, setShowAssigneeSelector] = useState(false);
+  const [showDeadlinePicker, setShowDeadlinePicker] = useState(false);
 
   // Get priority color based on theme and priority level
   const getPriorityColor = (priority) => {
@@ -124,8 +128,9 @@ export default function BoardDetailScreen() {
   }, [userId, boardId]);
 
   // Fetch board members for assignee dropdown
+  // Fetch board members for assignee dropdown
   async function loadBoardMembers() {
-    if (!boardId) return;
+    if (!boardId) return [];
 
     setIsLoadingMembers(true);
     try {
@@ -133,9 +138,11 @@ export default function BoardDetailScreen() {
       const members = await getBoardMembers(boardId);
       setBoardMembers(members);
       console.log("✅ Board members loaded:", members.length);
+      return members; // Return the loaded members
     } catch (error) {
       console.error("❌ Error loading board members:", error);
       Alert.alert("Error", "Failed to load board members");
+      return [];
     } finally {
       setIsLoadingMembers(false);
     }
@@ -218,23 +225,28 @@ export default function BoardDetailScreen() {
   };
 
   // Open task modal for editing
-  const openEditTaskModal = (task) => {
-    loadBoardMembers(); // Load members when modal opens
+  const openEditTaskModal = async (task) => {
     setIsEditingTask(true);
     setCurrentTaskId(task.task_id);
     setTaskTitle(task.title);
     setTaskDescription(task.description || "");
-
-    // Find the assigned user from board members
-    const assignedUser = boardMembers.find(
-      (m) => m.user_id === task.assigned_to
-    );
-    setSelectedAssignee(assignedUser || null); // Changed logic
-
     setTaskDueDate(task.due_date || null);
     setTaskLabels(task.tags ? task.tags.join(", ") : "");
     setTaskStatus(task.status);
     setTaskPriority(task.priority || "medium");
+
+    // Load board members and wait for the result
+    const members = await loadBoardMembers();
+
+    // Find and set the assigned user from the loaded members
+    if (task.assigned_to && members.length > 0) {
+      const assignedUser = members.find((m) => m.user_id === task.assigned_to);
+      setSelectedAssignee(assignedUser || null);
+      console.log("✅ Assignee set:", assignedUser?.email || "Not found");
+    } else {
+      setSelectedAssignee(null);
+    }
+
     setShowTaskModal(true);
   };
 
@@ -251,6 +263,37 @@ export default function BoardDetailScreen() {
     setTaskStatus("To-Do");
     setTaskPriority("medium");
     setBoardMembers([]); // Clear members
+    setShowAssigneeSelector(false);
+    setShowDeadlinePicker(false);
+  };
+
+  // Handle assignee selection
+  const handleAssigneeSelect = (member) => {
+    setSelectedAssignee(member);
+  };
+
+  const handleDeadlineSave = (deadline) => {
+    setTaskDueDate(deadline);
+    setShowDeadlinePicker(false);
+  };
+
+  // Handle deadline cancel
+  const handleDeadlineCancel = () => {
+    setShowDeadlinePicker(false);
+  };
+
+  // Format deadline for display
+  const formatDeadlineDisplay = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
   };
 
   // Create or update task
@@ -1167,6 +1210,197 @@ export default function BoardDetailScreen() {
                 </View>
               </View>
 
+              {/* Assignee Selector Button */}
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: COLORS.text,
+                    marginBottom: 8,
+                    fontWeight: "600",
+                  }}
+                >
+                  Assignee
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowAssigneeSelector(true)}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    backgroundColor: COLORS.background,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                    paddingVertical: 15,
+                    paddingHorizontal: 15,
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      flex: 1,
+                    }}
+                  >
+                    {selectedAssignee ? (
+                      <>
+                        <View
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 16,
+                            backgroundColor: COLORS.primary,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginRight: 12,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              fontWeight: "bold",
+                              color: COLORS.white,
+                            }}
+                          >
+                            {selectedAssignee.email.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              fontWeight: "600",
+                              color: COLORS.text,
+                            }}
+                          >
+                            {selectedAssignee.username || "Unknown User"}
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: COLORS.textLight,
+                              marginTop: 2,
+                            }}
+                          >
+                            {selectedAssignee.email}
+                          </Text>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="person-outline"
+                          size={20}
+                          color={COLORS.textLight}
+                          style={{ marginRight: 10 }}
+                        />
+                        <Text style={{ fontSize: 16, color: COLORS.textLight }}>
+                          {isEditingTask ? "Change Assignee" : "Set Assignee"}
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={COLORS.textLight}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Deadline Selector Button */}
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: COLORS.text,
+                    marginBottom: 8,
+                    fontWeight: "600",
+                  }}
+                >
+                  Deadline
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowDeadlinePicker(true)}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    backgroundColor: COLORS.background,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                    paddingVertical: 15,
+                    paddingHorizontal: 15,
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      flex: 1,
+                    }}
+                  >
+                    {taskDueDate ? (
+                      <>
+                        <Ionicons
+                          name="calendar"
+                          size={20}
+                          color={COLORS.primary}
+                          style={{ marginRight: 10 }}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: "600",
+                            color: COLORS.text,
+                          }}
+                        >
+                          {formatDeadlineDisplay(taskDueDate)}
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="calendar-outline"
+                          size={20}
+                          color={COLORS.textLight}
+                          style={{ marginRight: 10 }}
+                        />
+                        <Text style={{ fontSize: 16, color: COLORS.textLight }}>
+                          {isEditingTask ? "Change Deadline" : "Set Deadline"}
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={COLORS.textLight}
+                  />
+                </TouchableOpacity>
+                {taskDueDate && (
+                  <TouchableOpacity
+                    onPress={() => setTaskDueDate(null)}
+                    style={{
+                      marginTop: 8,
+                      alignSelf: "flex-start",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: "#ef4444",
+                        fontWeight: "600",
+                      }}
+                    >
+                      Clear Deadline
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
               {/* Status - Only show when editing */}
               {isEditingTask && (
                 <View style={{ marginBottom: 20 }}>
@@ -1276,6 +1510,28 @@ export default function BoardDetailScreen() {
             </ScrollView>
           </View>
         </View>
+      </Modal>
+
+      <AssigneeSelector
+        visible={showAssigneeSelector}
+        onClose={() => setShowAssigneeSelector(false)}
+        boardMembers={boardMembers}
+        currentAssignee={selectedAssignee}
+        onSelectAssignee={handleAssigneeSelect}
+        isLoading={isLoadingMembers}
+      />
+
+      <Modal
+        visible={showDeadlinePicker}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={handleDeadlineCancel}
+      >
+        <DeadlinePicker
+          currentDeadline={taskDueDate}
+          onSave={handleDeadlineSave}
+          onCancel={handleDeadlineCancel}
+        />
       </Modal>
     </View>
   );
