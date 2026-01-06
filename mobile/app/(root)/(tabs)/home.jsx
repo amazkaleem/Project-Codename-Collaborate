@@ -224,82 +224,6 @@ export default function HomeScreen() {
         contentContainerStyle={{ padding: 20 }}
         ListHeaderComponent={
           <>
-            {/* STATS CARDS */}
-            <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
-              {/* Boards Card */}
-              <View
-                style={{
-                  flex: 1,
-                  backgroundColor: COLORS.white,
-                  padding: 15,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: COLORS.border,
-                }}
-              >
-                <Ionicons
-                  name="grid-outline"
-                  size={24}
-                  color={COLORS.primary}
-                />
-                <Text
-                  style={{
-                    fontSize: 28,
-                    fontWeight: "bold",
-                    color: COLORS.text,
-                    marginTop: 10,
-                  }}
-                >
-                  {boards.length}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: COLORS.textLight,
-                    marginTop: 2,
-                  }}
-                >
-                  Total Boards
-                </Text>
-              </View>
-
-              {/* Tasks Card */}
-              <View
-                style={{
-                  flex: 1,
-                  backgroundColor: COLORS.white,
-                  padding: 15,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: COLORS.border,
-                }}
-              >
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={24}
-                  color={COLORS.boardTitle}
-                />
-                <Text
-                  style={{
-                    fontSize: 28,
-                    fontWeight: "bold",
-                    color: COLORS.text,
-                    marginTop: 10,
-                  }}
-                >
-                  {tasks.length}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: COLORS.textLight,
-                    marginTop: 2,
-                  }}
-                >
-                  Total Tasks
-                </Text>
-              </View>
-            </View>
 
             {/* UPCOMING TASKS SECTION */}
             {upcomingTasks.length > 0 && (
@@ -324,8 +248,9 @@ export default function HomeScreen() {
                   </Text>
                 </View>
                 {upcomingTasks.map((task) => (
-                  <View
+                  <TouchableOpacity
                     key={task.task_id}
+                    onPress={() => handleBoardPress(task.board_id)}
                     style={{
                       backgroundColor: COLORS.white,
                       padding: 15,
@@ -384,7 +309,7 @@ export default function HomeScreen() {
                         Due: {new Date(task.due_date).toLocaleDateString()}
                       </Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             )}

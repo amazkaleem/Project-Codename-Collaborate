@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   getBoardsByUserId,
   getTasksByBoardId,
+  getBoardMembers,
   updateBoard,
   deleteBoard,
   createTask,
@@ -52,11 +53,31 @@ export default function BoardDetailScreen() {
   const [currentTaskId, setCurrentTaskId] = useState(null);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
-  const [taskAssignee, setTaskAssignee] = useState("");
   const [taskDueDate, setTaskDueDate] = useState(null);
   const [taskLabels, setTaskLabels] = useState("");
   const [taskStatus, setTaskStatus] = useState("To-Do");
+  const [taskPriority, setTaskPriority] = useState("medium");
   const [isCreatingTask, setIsCreatingTask] = useState(false);
+
+  // Add these new state variables after existing task modal states
+  const [boardMembers, setBoardMembers] = useState([]);
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
+  const [selectedAssignee, setSelectedAssignee] = useState(null); // Stores full user object
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+
+  // Get priority color based on theme and priority level
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case "high":
+        return "#ef4444"; // Red shade
+      case "medium":
+        return "#22c55e"; // Green shade
+      case "low":
+        return "#3b82f6"; // Blue shade
+      default:
+        return COLORS.textLight;
+    }
+  };
 
   //There was another error with creating/updating tasks because Claude Ai
   //had modified the previous working version
@@ -102,6 +123,24 @@ export default function BoardDetailScreen() {
   useEffect(() => {
     loadBoardData();
   }, [userId, boardId]);
+
+  // Fetch board members for assignee dropdown
+  async function loadBoardMembers() {
+    if (!boardId) return;
+
+    setIsLoadingMembers(true);
+    try {
+      console.log("📥 Loading board members for assignee dropdown");
+      const members = await getBoardMembers(boardId);
+      setBoardMembers(members);
+      console.log("✅ Board members loaded:", members.length);
+    } catch (error) {
+      console.error("❌ Error loading board members:", error);
+      Alert.alert("Error", "Failed to load board members");
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  }
 
   // Refresh handler
   const onRefresh = async () => {
@@ -166,27 +205,37 @@ export default function BoardDetailScreen() {
 
   // Open task modal for creation
   const openCreateTaskModal = (status = "To-Do") => {
+    loadBoardMembers(); // Load members when modal opens -- We could remove this if we want assignee logic to be implemented through a button
     setIsEditingTask(false);
     setCurrentTaskId(null);
     setTaskTitle("");
     setTaskDescription("");
-    setTaskAssignee("");
+    setSelectedAssignee(null); // Changed from setTaskAssignee("")
     setTaskDueDate(null);
     setTaskLabels("");
-    setTaskStatus("To-Do"); // Always default to "To-Do" for new tasks
+    setTaskStatus("To-Do");
+    setTaskPriority("medium");
     setShowTaskModal(true);
   };
 
   // Open task modal for editing
   const openEditTaskModal = (task) => {
+    loadBoardMembers(); // Load members when modal opens
     setIsEditingTask(true);
     setCurrentTaskId(task.task_id);
     setTaskTitle(task.title);
     setTaskDescription(task.description || "");
-    setTaskAssignee(task.assigned_to || "");
+
+    // Find the assigned user from board members
+    const assignedUser = boardMembers.find(
+      (m) => m.user_id === task.assigned_to
+    );
+    setSelectedAssignee(assignedUser || null); // Changed logic
+
     setTaskDueDate(task.due_date || null);
     setTaskLabels(task.tags ? task.tags.join(", ") : "");
     setTaskStatus(task.status);
+    setTaskPriority(task.priority || "medium");
     setShowTaskModal(true);
   };
 
@@ -197,10 +246,13 @@ export default function BoardDetailScreen() {
     setCurrentTaskId(null);
     setTaskTitle("");
     setTaskDescription("");
-    setTaskAssignee("");
+    // setSelectedAssignee(null); -- Changed from setTaskAssignee("")
     setTaskDueDate(null);
     setTaskLabels("");
     setTaskStatus("To-Do");
+    setTaskPriority("medium");
+    setShowAssigneeDropdown(false); // Close dropdown
+    setBoardMembers([]); // Clear members
   };
 
   // Create or update task
@@ -220,6 +272,7 @@ export default function BoardDetailScreen() {
       .filter((tag) => tag.length > 0);
 
     setIsCreatingTask(true);
+
     try {
       if (isEditingTask && currentTaskId) {
         // Update existing task
@@ -227,11 +280,13 @@ export default function BoardDetailScreen() {
         const updateData = {
           title: taskTitle.trim(),
           description: taskDescription.trim(),
-          assigned_to: taskAssignee.trim() || null,
+          assigned_to: selectedAssignee?.user_id || null, // Changed: send user_id
           due_date: taskDueDate,
           tags: tagsArray.length > 0 ? tagsArray : null,
           status: taskStatus,
+          priority: taskPriority,
         };
+
         await updateTask(currentTaskId, updateData);
         Alert.alert("Success", "Task updated successfully");
       } else {
@@ -243,9 +298,10 @@ export default function BoardDetailScreen() {
           created_by: userId,
           status: taskStatus,
           description: taskDescription.trim(),
-          assigned_to: taskAssignee.trim() || null,
+          assigned_to: selectedAssignee?.user_id || null, // Changed: send user_id
           due_date: taskDueDate,
           tags: tagsArray,
+          priority: taskPriority,
         });
         Alert.alert("Success", "Task created successfully");
       }
@@ -488,6 +544,7 @@ export default function BoardDetailScreen() {
             numberOfLines={3}
           />
         ) : (
+          //The following piece of fragment doesn't seem to work
           <>
             {board.description ? (
               <Text
@@ -512,22 +569,6 @@ export default function BoardDetailScreen() {
           }}
         >
           <View style={{ flexDirection: "row", gap: 15 }}>
-            <TouchableOpacity
-              onPress={handleManageMembers}
-              style={{ flexDirection: "row", alignItems: "center" }}
-            >
-              <Ionicons
-                name="people-outline"
-                size={16}
-                color={COLORS.textLight}
-              />
-              <Text
-                style={{ fontSize: 12, color: COLORS.textLight, marginLeft: 5 }}
-              >
-                {board.member_count}{" "}
-                {board.member_count === 1 ? "member" : "members"}
-              </Text>
-            </TouchableOpacity>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Ionicons
                 name="checkbox-outline"
@@ -648,16 +689,30 @@ export default function BoardDetailScreen() {
                     borderColor: COLORS.border,
                   }}
                 >
-                  <Text
+                  {/* Title and Assignee Row */}
+                  <View
                     style={{
-                      fontSize: 14,
-                      fontWeight: "600",
-                      color: COLORS.text,
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
                       marginBottom: 8,
                     }}
                   >
-                    {task.title}
-                  </Text>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "600",
+                        color: COLORS.text,
+                        flex: 1,
+                        marginRight: 8,
+                      }}
+                      numberOfLines={2}
+                    >
+                      {task.title}
+                    </Text>
+                  </View>
+
+                  {/* Description */}
                   {task.description && (
                     <Text
                       style={{
@@ -670,6 +725,8 @@ export default function BoardDetailScreen() {
                       {task.description}
                     </Text>
                   )}
+
+                  {/* Due Date */}
                   {task.due_date && (
                     <View
                       style={{
@@ -694,6 +751,8 @@ export default function BoardDetailScreen() {
                       </Text>
                     </View>
                   )}
+
+                  {/* Tags */}
                   {task.tags && task.tags.length > 0 && (
                     <View
                       style={{
@@ -727,7 +786,7 @@ export default function BoardDetailScreen() {
                     </View>
                   )}
 
-                  {/* Task Actions */}
+                  {/* Task Actions Row */}
                   <View
                     style={{
                       flexDirection: "row",
@@ -815,20 +874,51 @@ export default function BoardDetailScreen() {
                       )}
                     </View>
 
-                    {/* Delete Button */}
-                    <TouchableOpacity
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleDeleteTask(task.task_id);
+                    {/* Priority Badge and Delete Button */}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
                       }}
-                      disabled={movingTaskId === task.task_id}
                     >
-                      <Ionicons
-                        name="trash-outline"
-                        size={16}
-                        color="#ef4444"
-                      />
-                    </TouchableOpacity>
+                      {/* Priority Badge */}
+                      {task.priority && (
+                        <View
+                          style={{
+                            backgroundColor: getPriorityColor(task.priority),
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            borderRadius: 4,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 10,
+                              color: COLORS.white,
+                              fontWeight: "700",
+                            }}
+                          >
+                            {task.priority.toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Delete Button */}
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTask(task.task_id);
+                        }}
+                        disabled={movingTaskId === task.task_id}
+                      >
+                        <Ionicons
+                          name="trash-outline"
+                          size={16}
+                          color="#ef4444"
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </TouchableOpacity>
               ))}
@@ -994,79 +1084,6 @@ export default function BoardDetailScreen() {
                 </View>
               </View>
 
-              {/* Assignee & Due Date Row */}
-              <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
-                {/* Assignee */}
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color: COLORS.text,
-                      marginBottom: 8,
-                      fontWeight: "600",
-                    }}
-                  >
-                    Assignee
-                  </Text>
-                  <View
-                    style={{
-                      backgroundColor: COLORS.background,
-                      borderRadius: 8,
-                      borderWidth: 1,
-                      borderColor: COLORS.border,
-                      paddingHorizontal: 12,
-                    }}
-                  >
-                    <TextInput
-                      style={{
-                        paddingVertical: 12,
-                        fontSize: 14,
-                        color: COLORS.text,
-                      }}
-                      placeholder="Select member"
-                      placeholderTextColor={COLORS.textLight}
-                      value={taskAssignee}
-                      onChangeText={setTaskAssignee}
-                    />
-                  </View>
-                </View>
-
-                {/* Due Date */}
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color: COLORS.text,
-                      marginBottom: 8,
-                      fontWeight: "600",
-                    }}
-                  >
-                    Due Date
-                  </Text>
-                  <View
-                    style={{
-                      backgroundColor: COLORS.background,
-                      borderRadius: 8,
-                      borderWidth: 1,
-                      borderColor: COLORS.border,
-                      paddingHorizontal: 12,
-                    }}
-                  >
-                    <TextInput
-                      style={{
-                        paddingVertical: 12,
-                        fontSize: 14,
-                        color: COLORS.text,
-                      }}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={COLORS.textLight}
-                      value={taskDueDate}
-                      onChangeText={setTaskDueDate}
-                    />
-                  </View>
-                </View>
-              </View>
-
               {/* Labels */}
               <View style={{ marginBottom: 16 }}>
                 <Text
@@ -1099,6 +1116,56 @@ export default function BoardDetailScreen() {
                     value={taskLabels}
                     onChangeText={setTaskLabels}
                   />
+                </View>
+              </View>
+
+              {/* Priority Selector */}
+              <View style={{ marginBottom: 16 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: COLORS.text,
+                    marginBottom: 8,
+                    fontWeight: "600",
+                  }}
+                >
+                  Priority
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {["high", "medium", "low"].map((priority) => (
+                    <TouchableOpacity
+                      key={priority}
+                      onPress={() => setTaskPriority(priority)}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 12,
+                        borderRadius: 8,
+                        backgroundColor:
+                          taskPriority === priority
+                            ? getPriorityColor(priority)
+                            : COLORS.background,
+                        borderWidth: 2,
+                        borderColor:
+                          taskPriority === priority
+                            ? getPriorityColor(priority)
+                            : COLORS.border,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: "600",
+                          color:
+                            taskPriority === priority
+                              ? COLORS.white
+                              : COLORS.text,
+                        }}
+                      >
+                        {priority}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
 

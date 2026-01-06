@@ -21,10 +21,10 @@ export default function ExploreScreen() {
   const { colors: COLORS } = useTheme();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [filteredBoards, setFilteredBoards] = useState([]);
-  const [selectedFilter, setSelectedFilter] = useState("all"); // all, my-boards, shared
-
+  const [filteredBoards, setFilteredBoards] = useState([]); // all, my-boards, shared -- This should be "all" state by default
   const { boards, isLoading, loadData } = useBoards(userId);
+
+  const selectedFilter = "all";
 
   // Load boards when component mounts
   useEffect(() => {
@@ -53,18 +53,11 @@ export default function ExploreScreen() {
       );
     }
 
-    // Apply category filter
-    if (selectedFilter === "my-boards") {
-      result = result.filter((board) => board.created_by === userId);
-    } else if (selectedFilter === "shared") {
-      result = result.filter((board) => board.created_by !== userId);
-    }
-
     // Sort by updated_at (most recent first)
     result.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
 
     setFilteredBoards(result);
-  }, [searchQuery, selectedFilter, boards, userId]);
+  }, [searchQuery, boards, userId]);
 
   // Navigate to board detail
   const handleBoardPress = (boardId) => {
@@ -143,7 +136,7 @@ export default function ExploreScreen() {
             placeholder="Search boards..."
             placeholderTextColor={COLORS.textLight}
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={setSearchQuery} //This could cause problems
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={handleClearSearch}>
@@ -154,86 +147,6 @@ export default function ExploreScreen() {
               />
             </TouchableOpacity>
           )}
-        </View>
-
-        {/* FILTER TABS */}
-        <View style={{ flexDirection: "row", marginTop: 15, gap: 10 }}>
-          <TouchableOpacity
-            onPress={() => setSelectedFilter("all")}
-            style={{
-              paddingVertical: 8,
-              paddingHorizontal: 16,
-              borderRadius: 20,
-              backgroundColor:
-                selectedFilter === "all" ? COLORS.primary : COLORS.background,
-              borderWidth: 1,
-              borderColor:
-                selectedFilter === "all" ? COLORS.primary : COLORS.border,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "600",
-                color: selectedFilter === "all" ? COLORS.white : COLORS.text,
-              }}
-            >
-              All Boards
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setSelectedFilter("my-boards")}
-            style={{
-              paddingVertical: 8,
-              paddingHorizontal: 16,
-              borderRadius: 20,
-              backgroundColor:
-                selectedFilter === "my-boards"
-                  ? COLORS.primary
-                  : COLORS.background,
-              borderWidth: 1,
-              borderColor:
-                selectedFilter === "my-boards" ? COLORS.primary : COLORS.border,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "600",
-                color:
-                  selectedFilter === "my-boards" ? COLORS.white : COLORS.text,
-              }}
-            >
-              My Boards
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setSelectedFilter("shared")}
-            style={{
-              paddingVertical: 8,
-              paddingHorizontal: 16,
-              borderRadius: 20,
-              backgroundColor:
-                selectedFilter === "shared"
-                  ? COLORS.primary
-                  : COLORS.background,
-              borderWidth: 1,
-              borderColor:
-                selectedFilter === "shared" ? COLORS.primary : COLORS.border,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "600",
-                color: selectedFilter === "shared" ? COLORS.white : COLORS.text,
-              }}
-            >
-              Shared
-            </Text>
-          </TouchableOpacity>
         </View>
       </View>
 
