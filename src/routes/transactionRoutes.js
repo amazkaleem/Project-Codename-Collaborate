@@ -13,8 +13,7 @@ import {
   getTasksByUserId,
   getBoardMembers,
   getUserByClerkId,
-  getAllBoards,
-  getBoardsByBoardName, // Add this
+  getBoardsByBoardName, 
 } from "../controllers/getControllers.js";
 
 import {
@@ -34,7 +33,6 @@ const router = express.Router();
 
 // GET routes
 router.get("/boards/search", getBoardsByBoardName); // Add this - must come BEFORE /boards/:userId
-router.get("/boards", getAllBoards);
 router.get("/boards/:userId", getBoardsByUserId);
 router.get("/tasks/board/:boardId", getTasksByBoardId);
 router.get("/tasks/user/:userId", getTasksByUserId);
