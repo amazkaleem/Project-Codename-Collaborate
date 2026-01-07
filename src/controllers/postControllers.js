@@ -76,7 +76,7 @@ export async function createBoard(req, res) {
     //We can actually destructure the req.params into a userId and assign it to created_by as a potential solution
 
     // Input validation - check for required fields
-    if (!board_name || !description || !created_by) {
+    if (!board_name || !created_by) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
