@@ -143,3 +143,45 @@ export async function getUserByClerkId(req, res) {
     res.status(500).json({ message: "Internal Server Error" });
   }
 }
+
+//GET boards by board name (search functionality)
+export async function getBoardsByBoardName(req, res) {
+  try {
+    const { boardName } = req.query;
+
+    // Validation
+    if (
+      !boardName ||
+      typeof boardName !== "string" ||
+      boardName.trim() === ""
+    ) {
+      return res.status(400).json({ message: "Board name query is required" });
+    }
+
+    const searchTerm = `%${boardName.trim()}%`;
+
+    // Using parameterized query with ILIKE for case-insensitive search
+    const boards = await sql`
+      SELECT 
+        b.board_id, 
+        b.board_name, 
+        b.description,
+        b.created_by, 
+        b.member_count, 
+        b.task_count, 
+        b.created_at,
+        b.updated_at,
+        u.username as creator_username
+      FROM boards b
+      LEFT JOIN users u ON b.created_by = u.user_id
+      WHERE b.board_name ILIKE ${searchTerm} 
+         OR b.description ILIKE ${searchTerm}
+      ORDER BY b.updated_at DESC
+    `;
+
+    res.status(200).json(boards);
+  } catch (error) {
+    console.log("There was an error searching boards by name:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}
