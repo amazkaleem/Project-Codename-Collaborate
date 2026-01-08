@@ -1,2 +1,2 @@
-# Project-Codename-Collaborate
-This repository serves as the code base for the "Software Engineering" Project..
+# Deployment to Railway
+This repository serves as the code base for the code deployed on Railway
