@@ -1,0 +1,351 @@
+import { sql } from "../config/db.js";
+
+//Creating a new user
+export async function createUser(req, res) {
+  try {
+    // console.log("POST /api/users body:", req.body);
+
+    //Use req.body for data sent in POST, PUT, or PATCH requests, usually in JSON or form data.
+    const { userId, username, email, password_hash, full_name } = req.body;
+
+    // Input validation - check for required fields
+    if (!username || !email || !password_hash || !full_name) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // Validation
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
+      return res.status(400).json({ message: "Invalid user ID format" });
+    }
+
+    // Additional validation - check field lengths and formats
+    if (username.length < 3 || username.length > 50) {
+      return res.status(400).json({
+        message: "Username must be between 3 and 50 characters",
+      });
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: "Invalid email format" });
+    }
+
+    if (full_name.length > 100) {
+      return res.status(400).json({
+        message: "Full name must not exceed 100 characters",
+      });
+    }
+
+    // Using parameterized query - values are automatically escaped
+    const user = await sql`
+      INSERT INTO users(user_id, username, email, password_hash, full_name)
+      VALUES (${userId}, ${username}, ${email}, ${password_hash}, ${full_name})
+      RETURNING user_id, username, email, full_name, avatar_url, created_at, is_active
+    `;
+
+    console.log("New user created:", user[0].user_id);
+    res.status(201).json(user[0]);
+  } catch (error) {
+    console.log("There was an error creating a new USER:", error);
+
+    // Handle unique constraint violations (duplicate username or email)
+    if (error.code === "23505") {
+      if (error.constraint === "users_username_key") {
+        return res.status(409).json({ message: "Username already exists" });
+      }
+      if (error.constraint === "users_email_key") {
+        return res.status(409).json({ message: "Email already exists" });
+      }
+    }
+
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+//Creating a new board. Done by the admin of the board
+export async function createBoard(req, res) {
+  try {
+    // console.log("POST /api/boards body:", req.body);
+    //Use req.body for data sent in POST, PUT, or PATCH requests, usually in JSON or form data.
+    const { board_name, description, created_by } = req.body;
+    //const created_by = req.user?.user_id; // example: from JWT or session
+    //There are some referencing problems here because "created_by" references users(user_id)
+    //and it cannot be NULL
+    //If there are no users in the database, created_by will become NULL which throws a 500 "Internal Server Error"
+    //We can actually destructure the req.params into a userId and assign it to created_by as a potential solution
+
+    // Input validation - check for required fields
+    if (!board_name || !created_by) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // Validation for created_by
+    if (typeof created_by !== "string" || created_by.trim() === "") {
+      return res.status(400).json({ message: "Invalid user ID format" });
+    }
+
+    // Additional validation - check field lengths
+    if (board_name.length > 100) {
+      return res.status(400).json({
+        message: "Board name must not exceed 100 characters",
+      });
+    }
+
+    // Using parameterized query - values are automatically escaped
+    const board = await sql`
+      INSERT INTO boards(board_name, description, created_by)
+      VALUES (${board_name}, ${description}, ${created_by})
+      RETURNING *
+    `;
+
+    // Also add the creator as an admin member of the board
+    await sql`
+      INSERT INTO board_members(board_id, user_id, role)
+      VALUES (${board[0].board_id}, ${created_by}, 'admin')
+    `;
+
+    console.log("New board created:", board[0].board_id);
+    res.status(201).json(board[0]);
+  } catch (error) {
+    console.log("There was an error creating a new board:", error);
+
+    // Handle foreign key constraint violations (invalid user)
+    if (error.code === "23503") {
+      return res.status(400).json({
+        message: "Invalid user ID - user does not exist",
+      });
+    }
+
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+//Creating a new task
+export async function createTask(req, res) {
+  try {
+    const {
+      title,
+      created_by,
+      boardId,
+      description,
+      assigned_to,
+      due_date,
+      tags,
+      status,
+      priority,
+    } = req.body;
+
+    // Input validation - check for required fields
+    if (!title || !created_by || !boardId) {
+      return res.status(400).json({
+        message: "Title, created_by, and board_id are required",
+      });
+    }
+
+    // Validation
+    if (
+      !created_by ||
+      typeof created_by !== "string" ||
+      created_by.trim() === ""
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Task created by an invalid user ID format" });
+    }
+
+    if (!boardId || typeof boardId !== "string" || boardId.trim() === "") {
+      return res
+        .status(400)
+        .json({ message: "Task belongs to Invalid board ID format" });
+    }
+
+    //During development, when trying send createTask() api request, the server would respond with "Internal Server Error"
+    //This error took me hours to solve, maybe even days
+    //It was just the handling of the null values provided in the req.body
+    //if ((assigned_to && typeof assigned_to !== "string") ||assigned_to.trim() === "") {...}
+    //The above line, previously used is flawed. When assigned_to is null, the .trim() on it crashes causing the server to crash
+    //And hence, the Server crash. Basis in Javascript is VERY IMPORTANT for backend!
+    if (assigned_to != null) {
+      if (typeof assigned_to !== "string") {
+        return res
+          .status(400)
+          .json({ message: "Task assigned to Invalid user ID format" });
+      }
+    }
+
+    // Validate status if provided
+    const validStatuses = ["To-Do", "In-Progress", "In-Review", "Done"];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({
+        message: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
+      });
+    }
+
+    // Validate priority if provided
+    const validPriorities = ["high", "medium", "low"];
+    if (priority && !validPriorities.includes(priority)) {
+      return res.status(400).json({
+        message: `Invalid priority. Must be one of: ${validPriorities.join(
+          ", "
+        )}`,
+      });
+    }
+
+    // Additional validation - check field lengths
+    if (title.length > 255) {
+      return res.status(400).json({
+        message: "Title must not exceed 255 characters",
+      });
+    }
+
+    // Validate tags is an array if provided
+    if (tags && !Array.isArray(tags)) {
+      return res.status(400).json({
+        message: "Tags must be an array",
+      });
+    }
+
+    const task = await sql`
+      INSERT INTO tasks (
+        title,
+        board_id,
+        created_by,
+        description,
+        assigned_to,
+        due_date,
+        tags,
+        status,
+        priority
+      )
+      VALUES (
+        ${title},
+        ${boardId},
+        ${created_by},
+        ${description},
+        ${assigned_to},
+        ${due_date},
+        ${tags},
+        ${status},
+        ${priority}
+      )
+      RETURNING *
+    `;
+
+    // Increment task_count o n the board (keep board metadata in sync)
+    const updatedBoard = await sql`
+      UPDATE boards
+      SET task_count = task_count + 1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE board_id = ${boardId}
+      RETURNING task_count
+    `;
+
+    // If board not found, rollback created task to avoid inconsistent state
+    if (updatedBoard.length === 0) {
+      await sql`
+        DELETE FROM tasks WHERE task_id = ${task[0].task_id}
+      `;
+      return res
+        .status(400)
+        .json({ message: "Board not found; task creation rolled back" });
+    }
+
+    console.log("New task created:", task[0].task_id);
+    res.status(201).json(task[0]);
+  } catch (error) {
+    console.log("There was an error POSTING a new task:", error);
+
+    // Handle foreign key constraint violations
+    if (error.code === "23503") {
+      if (error.constraint === "tasks_board_id_fkey") {
+        return res.status(400).json({
+          message: "Invalid board ID - board does not exist",
+        });
+      }
+      if (error.constraint === "tasks_created_by_fkey") {
+        return res.status(400).json({
+          message: "Invalid created_by user ID - user does not exist",
+        });
+      }
+    }
+
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+// Add a member to a board (POST /api/boards/:boardId/members)
+export async function addBoardMemberByEmail(req, res) {
+  try {
+    const { boardId } = req.params;
+    const { email, role = "member" } = req.body;
+
+    if (!boardId || typeof boardId !== "string" || boardId.trim() === "") {
+      return res.status(400).json({ message: "Invalid board ID format" });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      return res.status(400).json({ message: "Invalid email format" });
+    }
+
+    // ensure board exists
+    const board =
+      await sql`SELECT board_id FROM boards WHERE board_id = ${boardId}`;
+    if (!board.length)
+      return res.status(404).json({ message: "Board not found" });
+
+    // Find user by email
+    const user =
+      await sql`SELECT user_id, email, username FROM users WHERE email = ${email}`;
+
+    if (!user.length) {
+      return res.status(404).json({
+        message:
+          "No user found with this email address. Please ask them to create an account first.",
+      });
+    }
+
+    const user_id = user[0].user_id;
+
+    // Check if user is already a member
+    const existingMember = await sql`
+      SELECT * FROM board_members 
+      WHERE board_id = ${boardId} AND user_id = ${user_id}
+    `;
+
+    if (existingMember.length > 0) {
+      return res.status(409).json({
+        message: "This user is already a member of the board",
+      });
+    }
+
+    // insert member
+    const inserted = await sql`
+      INSERT INTO board_members(board_id, user_id, role)
+      VALUES (${boardId}, ${user_id}, ${role})
+      RETURNING *
+    `;
+
+    // increment member_count
+    await sql`
+      UPDATE boards
+      SET member_count = member_count + 1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE board_id = ${boardId}
+    `;
+
+    res.status(201).json({
+      message: "Member added successfully",
+      member: {
+        ...inserted[0],
+        email: user[0].email,
+        username: user[0].username,
+      },
+    });
+  } catch (error) {
+    console.log("Error adding member by email:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}

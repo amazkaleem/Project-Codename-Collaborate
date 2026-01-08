@@ -1,10 +1,2 @@
-# Ignore everything
-*
-
-# Allow mobile folder
-!mobile/
-!mobile/**
-
-# Allow .gitignore files
-!.gitignore
-!mobile/.gitignore
+node_modules
+.env
