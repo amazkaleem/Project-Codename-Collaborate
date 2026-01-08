@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Modal,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useUser } from "@clerk/clerk-expo";
 import { useState, useEffect } from "react";
@@ -26,8 +27,10 @@ import {
 } from "@/services/api";
 import AssigneeSelector from "@/components/AssigneeSelector";
 import DeadlinePicker from "@/components/DeadlinePicker";
+import { scheduleCompletedTaskDeletion } from "@/utils/taskDeadlineChecker";
 
 const TASK_STATUSES = ["To-Do", "In-Progress", "In-Review", "Done"];
+const MEMBER_ALLOWED_STATUSES = ["To-Do", "In-Progress", "In-Review"];
 
 export default function BoardDetailScreen() {
   const router = useRouter();
@@ -67,6 +70,13 @@ export default function BoardDetailScreen() {
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [showAssigneeSelector, setShowAssigneeSelector] = useState(false);
   const [showDeadlinePicker, setShowDeadlinePicker] = useState(false);
+
+  // New state variables for user role and admin status
+  const [userRole, setUserRole] = useState(null); // Will be 'admin' or 'member'
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Add a new state variable to track deletion timers (around line 72):
+  const [deletionTimers, setDeletionTimers] = useState({}); // Store timers by task_id
 
   // Get priority color based on theme and priority level
   const getPriorityColor = (priority) => {
@@ -109,6 +119,16 @@ export default function BoardDetailScreen() {
       setBoard(currentBoard);
       setBoardName(currentBoard.board_name);
       setBoardDescription(currentBoard.description || "");
+
+      // Fetch user's role in this board
+      const members = await getBoardMembers(boardId);
+      const currentUserMember = members.find((m) => m.user_id === userId);
+
+      if (currentUserMember) {
+        setUserRole(currentUserMember.role);
+        setIsAdmin(currentUserMember.role === "admin");
+        console.log("✅ User role:", currentUserMember.role);
+      }
 
       const boardTasks = await getTasksByBoardId(boardId);
       setTasks(boardTasks);
@@ -318,20 +338,67 @@ export default function BoardDetailScreen() {
       if (isEditingTask && currentTaskId) {
         // Update existing task
         console.log("📝 Updating task:", currentTaskId);
-        const updateData = {
-          title: taskTitle.trim(),
-          description: taskDescription.trim(),
-          assigned_to: selectedAssignee?.user_id || null, // Changed: send user_id
-          due_date: taskDueDate,
-          tags: tagsArray.length > 0 ? tagsArray : null,
-          status: taskStatus,
-          priority: taskPriority,
-        };
 
-        await updateTask(currentTaskId, updateData);
-        Alert.alert("Success", "Task updated successfully");
+        // Members can only update description, labels, and limited statuses
+        if (!isAdmin) {
+          // Validate that member is not trying to set status to "Done"
+          if (taskStatus === "Done") {
+            Alert.alert("Error", "Only admins can mark tasks as Done");
+            setIsCreatingTask(false);
+            return;
+          }
+
+          // Member can only update specific fields
+          const updateData = {
+            description: taskDescription.trim(),
+            tags: tagsArray.length > 0 ? tagsArray : null,
+            status: taskStatus,
+          };
+
+          await updateTask(currentTaskId, updateData);
+          Alert.alert("Success", "Task updated successfully");
+        } else {
+          // Admin can update all fields
+          const updateData = {
+            title: taskTitle.trim(),
+            description: taskDescription.trim(),
+            assigned_to: selectedAssignee?.user_id || null,
+            due_date: taskDueDate,
+            tags: tagsArray.length > 0 ? tagsArray : null,
+            status: taskStatus,
+            priority: taskPriority,
+          };
+
+          await updateTask(currentTaskId, updateData);
+          Alert.alert("Success", "Task updated successfully");
+
+          // Check if status was changed to "Done"
+          const originalTask = tasks.find((t) => t.task_id === currentTaskId);
+          if (taskStatus === "Done" && originalTask?.status !== "Done") {
+            closeTaskModal();
+            await loadBoardData();
+
+            // Schedule deletion using utility
+            scheduleCompletedTaskDeletion(
+              currentTaskId,
+              taskTitle,
+              deleteTask,
+              setTasks,
+              setDeletionTimers
+            );
+
+            setIsCreatingTask(false);
+            return; // Exit early since we already closed modal
+          }
+        }
       } else {
-        // Create new task
+        // Create new task - only admins can create tasks
+        if (!isAdmin) {
+          Alert.alert("Error", "Only admins can create tasks");
+          setIsCreatingTask(false);
+          return;
+        }
+
         console.log("📝 Creating task");
         await createTask({
           title: taskTitle.trim(),
@@ -339,7 +406,7 @@ export default function BoardDetailScreen() {
           created_by: userId,
           status: taskStatus,
           description: taskDescription.trim(),
-          assigned_to: selectedAssignee?.user_id || null, // Changed: send user_id
+          assigned_to: selectedAssignee?.user_id || null,
           due_date: taskDueDate,
           tags: tagsArray,
           priority: taskPriority,
@@ -362,31 +429,54 @@ export default function BoardDetailScreen() {
 
   // Update task status with loading state
   const handleTaskStatusChange = async (taskId, newStatus, direction) => {
-    setMovingTaskId(taskId); // Set loading state
-    setMovingDirection(direction); // Set direction ('forward' or 'backward')
+    setMovingTaskId(taskId);
+    setMovingDirection(direction);
+
     try {
       console.log("📝 Updating task status:", { taskId, newStatus });
+
+      // Get the task details before updating
+      const task = tasks.find((t) => t.task_id === taskId);
+
       await updateTask(taskId, { status: newStatus });
+
       // Update local state immediately for better UX
       setTasks((prevTasks) =>
         prevTasks.map((task) =>
           task.task_id === taskId ? { ...task, status: newStatus } : task
         )
       );
+
       console.log("✅ Task status updated");
+
+      // If status changed to "Done", show alert and schedule deletion
+      if (newStatus === "Done" && task) {
+        scheduleCompletedTaskDeletion(
+          taskId,
+          task.title,
+          deleteTask,
+          setTasks,
+          setDeletionTimers
+        );
+      }
     } catch (error) {
       console.error("❌ Error updating task:", error);
       Alert.alert("Error", error.message || "Failed to update task status");
       // Reload to sync state
       await loadBoardData();
     } finally {
-      setMovingTaskId(null); // Clear loading state
-      setMovingDirection(null); // Clear direction
+      setMovingTaskId(null);
+      setMovingDirection(null);
     }
   };
 
   // Delete task
   const handleDeleteTask = (taskId) => {
+    if (!isAdmin) {
+      Alert.alert("Error", "Only admins can delete tasks");
+      return;
+    }
+
     Alert.alert("Delete Task", "Are you sure you want to delete this task?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -515,7 +605,7 @@ export default function BoardDetailScreen() {
               {board.board_name}
             </Text>
           )}
-          {isOwner && !isEditingBoard && (
+          {isAdmin && !isEditingBoard && (
             <TouchableOpacity
               onPress={() => setIsEditingBoard(true)}
               style={{ marginLeft: 10 }}
@@ -635,8 +725,8 @@ export default function BoardDetailScreen() {
               />
             </TouchableOpacity>
 
-            {/* Delete Board Icon (only for owner) */}
-            {isOwner && (
+            {/* Delete Board Icon (only for admin) */}
+            {isAdmin && (
               <TouchableOpacity onPress={handleDeleteBoard}>
                 <Ionicons name="trash-outline" size={20} color="#ef4444" />
               </TouchableOpacity>
@@ -888,14 +978,21 @@ export default function BoardDetailScreen() {
                               "forward"
                             );
                           }}
-                          disabled={movingTaskId === task.task_id}
+                          disabled={
+                            movingTaskId === task.task_id ||
+                            (status === "In-Review" && !isAdmin)
+                          }
                           style={{
                             backgroundColor: COLORS.white,
                             padding: 6,
                             borderRadius: 6,
                             borderWidth: 1,
                             borderColor: COLORS.border,
-                            opacity: movingTaskId === task.task_id ? 0.6 : 1,
+                            opacity:
+                              movingTaskId === task.task_id ||
+                              (status === "In-Review" && !isAdmin)
+                                ? 0.6
+                                : 1,
                           }}
                         >
                           {movingTaskId === task.task_id &&
@@ -908,7 +1005,11 @@ export default function BoardDetailScreen() {
                             <Ionicons
                               name="arrow-forward"
                               size={14}
-                              color={COLORS.text}
+                              color={
+                                status === "In-Review" && !isAdmin
+                                  ? COLORS.textLight
+                                  : COLORS.text
+                              }
                             />
                           )}
                         </TouchableOpacity>
@@ -945,27 +1046,36 @@ export default function BoardDetailScreen() {
                         </View>
                       )}
 
-                      {/* Delete Button */}
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          handleDeleteTask(task.task_id);
-                        }}
-                        disabled={movingTaskId === task.task_id}
-                      >
-                        <Ionicons
-                          name="trash-outline"
-                          size={16}
-                          color="#ef4444"
-                        />
-                      </TouchableOpacity>
+                      {/* Delete Button - Only show for admins and disabled for Done tasks */}
+                      {isAdmin && (
+                        <TouchableOpacity
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTask(task.task_id);
+                          }}
+                          disabled={
+                            movingTaskId === task.task_id ||
+                            task.status === "Done"
+                          }
+                        >
+                          <Ionicons
+                            name="trash-outline"
+                            size={16}
+                            color={
+                              task.status === "Done"
+                                ? COLORS.textLight
+                                : "#ef4444"
+                            }
+                          />
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </View>
                 </TouchableOpacity>
               ))}
 
-              {/* Add Task Button */}
-              {status === "To-Do" && (
+              {/* Add Task Button - Only for admins */}
+              {status === "To-Do" && isAdmin && (
                 <TouchableOpacity
                   onPress={() => openCreateTaskModal(status)}
                   style={{
@@ -1040,8 +1150,13 @@ export default function BoardDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Task Title */}
+            <KeyboardAwareScrollView
+              showsVerticalScrollIndicator={false}
+              enableOnAndroid={true}
+              extraScrollHeight={20}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Task Title - Disable for members editing */}
               <View style={{ marginBottom: 16 }}>
                 <Text
                   style={{
@@ -1057,11 +1172,15 @@ export default function BoardDetailScreen() {
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    backgroundColor: COLORS.background,
+                    backgroundColor:
+                      isEditingTask && !isAdmin
+                        ? COLORS.border
+                        : COLORS.background,
                     borderRadius: 8,
                     borderWidth: 1,
                     borderColor: COLORS.border,
                     paddingHorizontal: 15,
+                    opacity: isEditingTask && !isAdmin ? 0.6 : 1,
                   }}
                 >
                   <Ionicons
@@ -1082,8 +1201,20 @@ export default function BoardDetailScreen() {
                     value={taskTitle}
                     onChangeText={setTaskTitle}
                     maxLength={255}
+                    editable={!isEditingTask || isAdmin}
                   />
                 </View>
+                {isEditingTask && !isAdmin && (
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      color: COLORS.textLight,
+                      marginTop: 4,
+                    }}
+                  >
+                    Only admins can edit the task title
+                  </Text>
+                )}
               </View>
 
               {/* Description */}
@@ -1160,113 +1291,203 @@ export default function BoardDetailScreen() {
                 </View>
               </View>
 
-              {/* Priority Selector */}
-              <View style={{ marginBottom: 16 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: COLORS.text,
-                    marginBottom: 8,
-                    fontWeight: "600",
-                  }}
-                >
-                  Priority
-                </Text>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {["high", "medium", "low"].map((priority) => (
-                    <TouchableOpacity
-                      key={priority}
-                      onPress={() => setTaskPriority(priority)}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 12,
-                        borderRadius: 8,
-                        backgroundColor:
-                          taskPriority === priority
-                            ? getPriorityColor(priority)
-                            : COLORS.background,
-                        borderWidth: 2,
-                        borderColor:
-                          taskPriority === priority
-                            ? getPriorityColor(priority)
-                            : COLORS.border,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text
+              {/* Priority Selector - Only for admins */}
+              {(!isEditingTask || isAdmin) && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: COLORS.text,
+                      marginBottom: 8,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Priority
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {["high", "medium", "low"].map((priority) => (
+                      <TouchableOpacity
+                        key={priority}
+                        onPress={() => setTaskPriority(priority)}
                         style={{
-                          fontSize: 14,
-                          fontWeight: "600",
-                          color:
+                          flex: 1,
+                          paddingVertical: 12,
+                          borderRadius: 8,
+                          backgroundColor:
                             taskPriority === priority
-                              ? COLORS.white
-                              : COLORS.text,
+                              ? getPriorityColor(priority)
+                              : COLORS.background,
+                          borderWidth: 2,
+                          borderColor:
+                            taskPriority === priority
+                              ? getPriorityColor(priority)
+                              : COLORS.border,
+                          alignItems: "center",
                         }}
                       >
-                        {priority}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: "600",
+                            color:
+                              taskPriority === priority
+                                ? COLORS.white
+                                : COLORS.text,
+                          }}
+                        >
+                          {priority}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
-              </View>
+              )}
 
-              {/* Assignee Selector Button */}
-              <View style={{ marginBottom: 16 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: COLORS.text,
-                    marginBottom: 8,
-                    fontWeight: "600",
-                  }}
-                >
-                  Assignee
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setShowAssigneeSelector(true)}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    backgroundColor: COLORS.background,
-                    borderRadius: 8,
-                    borderWidth: 1,
-                    borderColor: COLORS.border,
-                    paddingVertical: 15,
-                    paddingHorizontal: 15,
-                  }}
-                >
-                  <View
+              {/* Assignee Selector Button - Only for admins */}
+              {(!isEditingTask || isAdmin) && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: COLORS.text,
+                      marginBottom: 8,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Assignee
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setShowAssigneeSelector(true)}
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      flex: 1,
+                      justifyContent: "space-between",
+                      backgroundColor: COLORS.background,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: COLORS.border,
+                      paddingVertical: 15,
+                      paddingHorizontal: 15,
                     }}
                   >
-                    {selectedAssignee ? (
-                      <>
-                        <View
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 16,
-                            backgroundColor: COLORS.primary,
-                            alignItems: "center",
-                            justifyContent: "center",
-                            marginRight: 12,
-                          }}
-                        >
-                          <Text
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        flex: 1,
+                      }}
+                    >
+                      {selectedAssignee ? (
+                        <>
+                          <View
                             style={{
-                              fontSize: 14,
-                              fontWeight: "bold",
-                              color: COLORS.white,
+                              width: 32,
+                              height: 32,
+                              borderRadius: 16,
+                              backgroundColor: COLORS.primary,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              marginRight: 12,
                             }}
                           >
-                            {selectedAssignee.email.charAt(0).toUpperCase()}
+                            <Text
+                              style={{
+                                fontSize: 14,
+                                fontWeight: "bold",
+                                color: COLORS.white,
+                              }}
+                            >
+                              {selectedAssignee.email.charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={{
+                                fontSize: 14,
+                                fontWeight: "600",
+                                color: COLORS.text,
+                              }}
+                            >
+                              {selectedAssignee.username || "Unknown User"}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                color: COLORS.textLight,
+                                marginTop: 2,
+                              }}
+                            >
+                              {selectedAssignee.email}
+                            </Text>
+                          </View>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="person-outline"
+                            size={20}
+                            color={COLORS.textLight}
+                            style={{ marginRight: 10 }}
+                          />
+                          <Text
+                            style={{ fontSize: 16, color: COLORS.textLight }}
+                          >
+                            {isEditingTask ? "Change Assignee" : "Set Assignee"}
                           </Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
+                        </>
+                      )}
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={COLORS.textLight}
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Deadline Selector Button - Only for admins */}
+              {(!isEditingTask || isAdmin) && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: COLORS.text,
+                      marginBottom: 8,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Deadline
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setShowDeadlinePicker(true)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      backgroundColor: COLORS.background,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: COLORS.border,
+                      paddingVertical: 15,
+                      paddingHorizontal: 15,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        flex: 1,
+                      }}
+                    >
+                      {taskDueDate ? (
+                        <>
+                          <Ionicons
+                            name="calendar"
+                            size={20}
+                            color={COLORS.primary}
+                            style={{ marginRight: 10 }}
+                          />
                           <Text
                             style={{
                               fontSize: 14,
@@ -1274,132 +1495,52 @@ export default function BoardDetailScreen() {
                               color: COLORS.text,
                             }}
                           >
-                            {selectedAssignee.username || "Unknown User"}
+                            {formatDeadlineDisplay(taskDueDate)}
                           </Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="calendar-outline"
+                            size={20}
+                            color={COLORS.textLight}
+                            style={{ marginRight: 10 }}
+                          />
                           <Text
-                            style={{
-                              fontSize: 12,
-                              color: COLORS.textLight,
-                              marginTop: 2,
-                            }}
+                            style={{ fontSize: 16, color: COLORS.textLight }}
                           >
-                            {selectedAssignee.email}
+                            {isEditingTask ? "Change Deadline" : "Set Deadline"}
                           </Text>
-                        </View>
-                      </>
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="person-outline"
-                          size={20}
-                          color={COLORS.textLight}
-                          style={{ marginRight: 10 }}
-                        />
-                        <Text style={{ fontSize: 16, color: COLORS.textLight }}>
-                          {isEditingTask ? "Change Assignee" : "Set Assignee"}
-                        </Text>
-                      </>
-                    )}
-                  </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={COLORS.textLight}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* Deadline Selector Button */}
-              <View style={{ marginBottom: 16 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: COLORS.text,
-                    marginBottom: 8,
-                    fontWeight: "600",
-                  }}
-                >
-                  Deadline
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setShowDeadlinePicker(true)}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    backgroundColor: COLORS.background,
-                    borderRadius: 8,
-                    borderWidth: 1,
-                    borderColor: COLORS.border,
-                    paddingVertical: 15,
-                    paddingHorizontal: 15,
-                  }}
-                >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      flex: 1,
-                    }}
-                  >
-                    {taskDueDate ? (
-                      <>
-                        <Ionicons
-                          name="calendar"
-                          size={20}
-                          color={COLORS.primary}
-                          style={{ marginRight: 10 }}
-                        />
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            fontWeight: "600",
-                            color: COLORS.text,
-                          }}
-                        >
-                          {formatDeadlineDisplay(taskDueDate)}
-                        </Text>
-                      </>
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="calendar-outline"
-                          size={20}
-                          color={COLORS.textLight}
-                          style={{ marginRight: 10 }}
-                        />
-                        <Text style={{ fontSize: 16, color: COLORS.textLight }}>
-                          {isEditingTask ? "Change Deadline" : "Set Deadline"}
-                        </Text>
-                      </>
-                    )}
-                  </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={COLORS.textLight}
-                  />
-                </TouchableOpacity>
-                {taskDueDate && (
-                  <TouchableOpacity
-                    onPress={() => setTaskDueDate(null)}
-                    style={{
-                      marginTop: 8,
-                      alignSelf: "flex-start",
-                    }}
-                  >
-                    <Text
+                        </>
+                      )}
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={COLORS.textLight}
+                    />
+                  </TouchableOpacity>
+                  {taskDueDate && (
+                    <TouchableOpacity
+                      onPress={() => setTaskDueDate(null)}
                       style={{
-                        fontSize: 12,
-                        color: "#ef4444",
-                        fontWeight: "600",
+                        marginTop: 8,
+                        alignSelf: "flex-start",
                       }}
                     >
-                      Clear Deadline
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: "#ef4444",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Clear Deadline
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
 
               {/* Status - Only show when editing */}
               {isEditingTask && (
@@ -1417,40 +1558,58 @@ export default function BoardDetailScreen() {
                   <View
                     style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
                   >
-                    {TASK_STATUSES.map((status) => (
-                      <TouchableOpacity
-                        key={status}
-                        onPress={() => setTaskStatus(status)}
-                        style={{
-                          paddingVertical: 10,
-                          paddingHorizontal: 16,
-                          borderRadius: 8,
-                          backgroundColor:
-                            taskStatus === status
-                              ? COLORS.primary
-                              : COLORS.background,
-                          borderWidth: 1,
-                          borderColor:
-                            taskStatus === status
-                              ? COLORS.primary
-                              : COLORS.border,
-                        }}
-                      >
-                        <Text
+                    {TASK_STATUSES.map((status) => {
+                      // Members cannot select "Done" status
+                      const isDisabled = !isAdmin && status === "Done";
+
+                      return (
+                        <TouchableOpacity
+                          key={status}
+                          onPress={() => !isDisabled && setTaskStatus(status)}
+                          disabled={isDisabled}
                           style={{
-                            fontSize: 14,
-                            fontWeight: "600",
-                            color:
+                            paddingVertical: 10,
+                            paddingHorizontal: 16,
+                            borderRadius: 8,
+                            backgroundColor:
                               taskStatus === status
-                                ? COLORS.white
-                                : COLORS.text,
+                                ? COLORS.primary
+                                : COLORS.background,
+                            borderWidth: 1,
+                            borderColor:
+                              taskStatus === status
+                                ? COLORS.primary
+                                : COLORS.border,
+                            opacity: isDisabled ? 0.4 : 1,
                           }}
                         >
-                          {status}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              fontWeight: "600",
+                              color:
+                                taskStatus === status
+                                  ? COLORS.white
+                                  : COLORS.text,
+                            }}
+                          >
+                            {status}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
+                  {!isAdmin && (
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: COLORS.textLight,
+                        marginTop: 8,
+                      }}
+                    >
+                      Only admins can mark tasks as &quot;Done&quot;
+                    </Text>
+                  )}
                 </View>
               )}
 
@@ -1507,7 +1666,7 @@ export default function BoardDetailScreen() {
                   )}
                 </TouchableOpacity>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </View>
       </Modal>

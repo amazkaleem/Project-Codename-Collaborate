@@ -5,14 +5,16 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  Platform,
   Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useUser } from "@clerk/clerk-expo";
-import { useState, useEffect } from "react";
-import { useBoards } from "@/hooks/useBoards";
+import { useState } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
+import { searchBoardsByName, getBoardMembers } from "@/services/api";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 export default function ExploreScreen() {
   const router = useRouter();
@@ -21,56 +23,64 @@ export default function ExploreScreen() {
   const { colors: COLORS } = useTheme();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [filteredBoards, setFilteredBoards] = useState([]); // all, my-boards, shared -- This should be "all" state by default
-  const { boards, isLoading, loadData } = useBoards(userId);
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  const selectedFilter = "all";
+  // Handle search
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
 
-  // Load boards when component mounts
-  useEffect(() => {
-    if (userId) {
-      console.log("🔍 Loading boards for explore:", userId);
-      loadData();
+    setIsSearching(true);
+    setHasSearched(true);
+
+    try {
+      console.log("🔍 Searching boards:", searchQuery);
+      const results = await searchBoardsByName(searchQuery.trim());
+      setSearchResults(results);
+      console.log("✅ Search results:", results.length);
+    } catch (error) {
+      console.error("❌ Error searching boards:", error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
     }
-  }, [userId, loadData]);
-
-  // Filter boards based on search query and selected filter
-  useEffect(() => {
-    if (!boards) {
-      setFilteredBoards([]);
-      return;
-    }
-
-    let result = [...boards];
-
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      result = result.filter(
-        (board) =>
-          board.board_name.toLowerCase().includes(query) ||
-          board.description?.toLowerCase().includes(query)
-      );
-    }
-
-    // Sort by updated_at (most recent first)
-    result.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-
-    setFilteredBoards(result);
-  }, [searchQuery, boards, userId]);
-
-  // Navigate to board detail
-  const handleBoardPress = (boardId) => {
-    router.push(`/board/${boardId}`);
   };
 
   // Clear search
   const handleClearSearch = () => {
     setSearchQuery("");
+    setSearchResults([]);
+    setHasSearched(false);
+  };
+
+  // Navigate to board detail
+  const handleBoardPress = async (board) => {
+    try {
+      // Check if user is a member of this board
+      const members = await getBoardMembers(board.board_id);
+      const isMember = members.some((member) => member.user_id === userId);
+
+      if (!isMember) {
+        // User is not a member, show alert
+        Alert.alert(
+          "Access Denied",
+          "You are not a member of this board. Please contact the board admin to join.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+
+      // User is a member, navigate to board
+      router.push(`/board/${board.board_id}`);
+    } catch (error) {
+      console.error("❌ Error checking board access:", error);
+      Alert.alert("Error", "Failed to check board access");
+    }
   };
 
   // Show loading if Clerk hasn't loaded yet
-  if (!isLoaded || isLoading) {
+  if (!isLoaded) {
     return (
       <View
         style={{
@@ -82,7 +92,7 @@ export default function ExploreScreen() {
       >
         <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={{ marginTop: 10, color: COLORS.textLight }}>
-          Loading boards...
+          Loading...
         </Text>
       </View>
     );
@@ -90,240 +100,156 @@ export default function ExploreScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.background }}>
-      {/* HEADER */}
-      <View
-        style={{
-          backgroundColor: COLORS.white,
-          paddingTop: 20,
-          paddingBottom: 15,
-          paddingHorizontal: 20,
-          borderBottomWidth: 1,
-          borderBottomColor: COLORS.border,
-        }}
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1 }}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={20}
+        keyboardShouldPersistTaps="handled"
       >
-        <Text
-          style={{
-            fontSize: 24,
-            fontWeight: "bold",
-            color: COLORS.text,
-            marginBottom: 15,
-          }}
-        >
-          Explore Boards
-        </Text>
-
-        {/* SEARCH BAR */}
+        {/* HEADER */}
         <View
           style={{
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: COLORS.background,
-            borderRadius: 10,
-            paddingHorizontal: 15,
-            paddingVertical: 10,
-            borderWidth: 1,
-            borderColor: COLORS.border,
+            backgroundColor: COLORS.white,
+            paddingTop: 20,
+            paddingBottom: 15,
+            paddingHorizontal: 20,
+            borderBottomWidth: 1,
+            borderBottomColor: COLORS.border,
           }}
         >
-          <Ionicons name="search" size={20} color={COLORS.textLight} />
-          <TextInput
+          <Text
             style={{
-              flex: 1,
-              marginLeft: 10,
-              fontSize: 16,
+              fontSize: 24,
+              fontWeight: "bold",
               color: COLORS.text,
+              marginBottom: 15,
             }}
-            placeholder="Search boards..."
-            placeholderTextColor={COLORS.textLight}
-            value={searchQuery}
-            onChangeText={setSearchQuery} //This could cause problems
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={handleClearSearch}>
-              <Ionicons
-                name="close-circle"
-                size={20}
-                color={COLORS.textLight}
-              />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+          >
+            Explore Boards
+          </Text>
 
-      {/* RESULTS COUNT */}
-      <View
-        style={{
-          paddingHorizontal: 20,
-          paddingVertical: 12,
-          backgroundColor: COLORS.background,
-        }}
-      >
-        <Text style={{ fontSize: 14, color: COLORS.textLight }}>
-          {filteredBoards.length}{" "}
-          {filteredBoards.length === 1 ? "board" : "boards"} found
-        </Text>
-      </View>
-
-      {/* BOARDS LIST */}
-      <FlatList
-        data={filteredBoards}
-        keyExtractor={(item) => item.board_id}
-        contentContainerStyle={{ padding: 20, paddingTop: 0 }}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => {
-          const isCreator = item.created_by === userId;
-
-          return (
-            <TouchableOpacity
-              onPress={() => handleBoardPress(item.board_id)}
+          {/* SEARCH BAR */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: COLORS.background,
+              borderRadius: 10,
+              paddingHorizontal: 15,
+              paddingVertical: 10,
+              borderWidth: 1,
+              borderColor: COLORS.border,
+              marginBottom: 12,
+            }}
+          >
+            <Ionicons name="search" size={20} color={COLORS.textLight} />
+            <TextInput
               style={{
-                backgroundColor: COLORS.white,
-                padding: 18,
-                borderRadius: 12,
-                marginBottom: 12,
-                borderWidth: 1,
-                borderColor: COLORS.border,
-                shadowColor: COLORS.shadow,
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 4,
-                elevation: 2,
+                flex: 1,
+                marginLeft: 10,
+                fontSize: 16,
+                color: COLORS.text,
               }}
-            >
-              {/* Board Header */}
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Text
-                      style={{
-                        fontSize: 18,
-                        fontWeight: "bold",
-                        color: COLORS.text,
-                      }}
-                    >
-                      {item.board_name}
-                    </Text>
-                    {isCreator && (
-                      <View
-                        style={{
-                          backgroundColor: COLORS.primary,
-                          paddingHorizontal: 8,
-                          paddingVertical: 3,
-                          borderRadius: 4,
-                          marginLeft: 8,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 10,
-                            color: COLORS.white,
-                            fontWeight: "600",
-                          }}
-                        >
-                          OWNER
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  {item.description && (
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color: COLORS.textLight,
-                        marginTop: 6,
-                      }}
-                      numberOfLines={2}
-                    >
-                      {item.description}
-                    </Text>
-                  )}
-                </View>
+              placeholder="Search for boards..."
+              placeholderTextColor={COLORS.textLight}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={handleSearch}
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={handleClearSearch}>
                 <Ionicons
-                  name="chevron-forward"
+                  name="close-circle"
                   size={20}
                   color={COLORS.textLight}
                 />
-              </View>
+              </TouchableOpacity>
+            )}
+          </View>
 
-              {/* Board Stats */}
-              <View style={{ flexDirection: "row", marginTop: 12, gap: 15 }}>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Ionicons
-                    name="people-outline"
-                    size={16}
-                    color={COLORS.textLight}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: COLORS.textLight,
-                      marginLeft: 5,
-                    }}
-                  >
-                    {item.member_count}{" "}
-                    {item.member_count === 1 ? "member" : "members"}
-                  </Text>
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Ionicons
-                    name="checkbox-outline"
-                    size={16}
-                    color={COLORS.textLight}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: COLORS.textLight,
-                      marginLeft: 5,
-                    }}
-                  >
-                    {item.task_count} {item.task_count === 1 ? "task" : "tasks"}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Updated Time */}
+          {/* SEARCH BUTTON */}
+          <TouchableOpacity
+            onPress={handleSearch}
+            disabled={!searchQuery.trim() || isSearching}
+            style={{
+              backgroundColor: !searchQuery.trim()
+                ? COLORS.textLight
+                : COLORS.primary,
+              paddingVertical: 12,
+              borderRadius: 8,
+              alignItems: "center",
+              opacity: isSearching ? 0.6 : 1,
+            }}
+          >
+            {isSearching ? (
+              <ActivityIndicator size="small" color={COLORS.white} />
+            ) : (
               <Text
-                style={{ fontSize: 11, color: COLORS.textLight, marginTop: 8 }}
+                style={{
+                  fontSize: 16,
+                  fontWeight: "600",
+                  color: COLORS.white,
+                }}
               >
-                Updated {new Date(item.updated_at).toLocaleDateString()}
+                Search
               </Text>
-            </TouchableOpacity>
-          );
-        }}
-        ListEmptyComponent={
-          <View style={{ alignItems: "center", paddingVertical: 60 }}>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* RESULTS */}
+        {isSearching ? (
+          // Loading State
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              paddingHorizontal: 40,
+              minHeight: 400,
+            }}
+          >
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text
+              style={{
+                marginTop: 16,
+                fontSize: 16,
+                color: COLORS.textLight,
+                textAlign: "center",
+              }}
+            >
+              Loading boards...
+            </Text>
+          </View>
+        ) : !hasSearched ? (
+          // Initial State - No search yet
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              paddingHorizontal: 40,
+              minHeight: 400,
+            }}
+          >
             <Ionicons
-              name={
-                searchQuery.trim()
-                  ? "search-outline"
-                  : selectedFilter === "shared"
-                  ? "people-outline"
-                  : "clipboard-outline"
-              }
-              size={64}
+              name="search-outline"
+              size={80}
               color={COLORS.textLight}
             />
             <Text
               style={{
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: "600",
                 color: COLORS.text,
-                marginTop: 16,
+                marginTop: 20,
                 textAlign: "center",
               }}
             >
-              {searchQuery.trim()
-                ? "No boards found"
-                : selectedFilter === "shared"
-                ? "No shared boards"
-                : "No boards yet"}
+              Search for Boards
             </Text>
             <Text
               style={{
@@ -331,18 +257,237 @@ export default function ExploreScreen() {
                 color: COLORS.textLight,
                 marginTop: 8,
                 textAlign: "center",
-                paddingHorizontal: 40,
               }}
             >
-              {searchQuery.trim()
-                ? `No boards match "${searchQuery}"`
-                : selectedFilter === "shared"
-                ? "Boards shared with you will appear here"
-                : "Create a board to get started"}
+              Type a board name in the search field above and tap Search to find
+              boards
             </Text>
           </View>
-        }
-      />
+        ) : searchResults.length === 0 ? (
+          // Empty Results
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              paddingHorizontal: 40,
+              minHeight: 400,
+            }}
+          >
+            <Ionicons
+              name="file-tray-outline"
+              size={80}
+              color={COLORS.textLight}
+            />
+            <Text
+              style={{
+                fontSize: 20,
+                fontWeight: "600",
+                color: COLORS.text,
+                marginTop: 20,
+                textAlign: "center",
+              }}
+            >
+              No Boards Found
+            </Text>
+            <Text
+              style={{
+                fontSize: 14,
+                color: COLORS.textLight,
+                marginTop: 8,
+                textAlign: "center",
+              }}
+            >
+              No boards match &quot;{searchQuery}&quot;
+            </Text>
+            <TouchableOpacity
+              onPress={handleClearSearch}
+              style={{
+                marginTop: 20,
+                paddingVertical: 10,
+                paddingHorizontal: 20,
+                backgroundColor: COLORS.primary,
+                borderRadius: 8,
+              }}
+            >
+              <Text style={{ color: COLORS.white, fontWeight: "600" }}>
+                Try Another Search
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          // Results List
+          <View style={{ flex: 1 }}>
+            <View
+              style={{
+                paddingHorizontal: 20,
+                paddingVertical: 12,
+                backgroundColor: COLORS.background,
+              }}
+            >
+              <Text style={{ fontSize: 14, color: COLORS.textLight }}>
+                {searchResults.length}{" "}
+                {searchResults.length === 1 ? "board" : "boards"} found
+              </Text>
+            </View>
+
+            <FlatList
+              data={searchResults}
+              keyExtractor={(item) => item.board_id}
+              contentContainerStyle={{ padding: 20, paddingTop: 0 }}
+              showsVerticalScrollIndicator={false}
+              scrollEnabled={false}
+              renderItem={({ item }) => {
+                const isCreator = item.created_by === userId;
+
+                return (
+                  <TouchableOpacity
+                    onPress={() => handleBoardPress(item)}
+                    style={{
+                      backgroundColor: COLORS.white,
+                      padding: 18,
+                      borderRadius: 12,
+                      marginBottom: 12,
+                      borderWidth: 1,
+                      borderColor: COLORS.border,
+                      shadowColor: COLORS.shadow,
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 4,
+                      elevation: 2,
+                    }}
+                  >
+                    {/* Board Header */}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <View
+                          style={{ flexDirection: "row", alignItems: "center" }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 18,
+                              fontWeight: "bold",
+                              color: COLORS.text,
+                            }}
+                          >
+                            {item.board_name}
+                          </Text>
+                          {isCreator && (
+                            <View
+                              style={{
+                                backgroundColor: COLORS.primary,
+                                paddingHorizontal: 8,
+                                paddingVertical: 3,
+                                borderRadius: 4,
+                                marginLeft: 8,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  fontSize: 10,
+                                  color: COLORS.white,
+                                  fontWeight: "600",
+                                }}
+                              >
+                                OWNER
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        {item.description && (
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              color: COLORS.textLight,
+                              marginTop: 6,
+                            }}
+                            numberOfLines={2}
+                          >
+                            {item.description}
+                          </Text>
+                        )}
+                      </View>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={COLORS.textLight}
+                      />
+                    </View>
+
+                    {/* Board Stats */}
+                    <View
+                      style={{ flexDirection: "row", marginTop: 12, gap: 15 }}
+                    >
+                      <View
+                        style={{ flexDirection: "row", alignItems: "center" }}
+                      >
+                        <Ionicons
+                          name="people-outline"
+                          size={16}
+                          color={COLORS.textLight}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: COLORS.textLight,
+                            marginLeft: 5,
+                          }}
+                        >
+                          {item.member_count}{" "}
+                          {item.member_count === 1 ? "member" : "members"}
+                        </Text>
+                      </View>
+                      <View
+                        style={{ flexDirection: "row", alignItems: "center" }}
+                      >
+                        <Ionicons
+                          name="checkbox-outline"
+                          size={16}
+                          color={COLORS.textLight}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: COLORS.textLight,
+                            marginLeft: 5,
+                          }}
+                        >
+                          {item.task_count}{" "}
+                          {item.task_count === 1 ? "task" : "tasks"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Updated Time & Creator */}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        marginTop: 8,
+                      }}
+                    >
+                      <Text style={{ fontSize: 11, color: COLORS.textLight }}>
+                        Updated {new Date(item.updated_at).toLocaleDateString()}
+                      </Text>
+                      {item.creator_username && (
+                        <Text style={{ fontSize: 11, color: COLORS.textLight }}>
+                          by @{item.creator_username}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        )}
+      </KeyboardAwareScrollView>
     </View>
   );
 }

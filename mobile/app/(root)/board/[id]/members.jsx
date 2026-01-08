@@ -7,6 +7,7 @@ import {
   Alert,
   TextInput,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useUser } from "@clerk/clerk-expo";
 import { useState, useEffect } from "react";
@@ -235,421 +236,457 @@ export default function BoardMembersScreen() {
         </Text>
       </View>
 
-      {/* ADD MEMBER FORM */}
-      {showAddMember && isAdmin && (
-        <View
-          style={{
-            backgroundColor: COLORS.white,
-            padding: 20,
-            borderBottomWidth: 1,
-            borderBottomColor: COLORS.border,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 16,
-              fontWeight: "bold",
-              color: COLORS.text,
-              marginBottom: 12,
-            }}
-          >
-            Add New Member
-          </Text>
-
-          {/* Email Input */}
-          <View style={{ marginBottom: 12 }}>
-            <Text
-              style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 5 }}
-            >
-              Email Address *
-            </Text>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: COLORS.background,
-                borderRadius: 8,
-                paddingHorizontal: 15,
-                borderWidth: 1,
-                borderColor: COLORS.border,
-              }}
-            >
-              <Ionicons
-                name="mail-outline"
-                size={20}
-                color={COLORS.textLight}
-              />
-              <TextInput
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  paddingHorizontal: 10,
-                  fontSize: 14,
-                  color: COLORS.text,
-                }}
-                placeholder="Enter user's email"
-                placeholderTextColor={COLORS.textLight}
-                value={newMemberEmail}
-                onChangeText={setNewMemberEmail}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-              />
-            </View>
-          </View>
-
-          {/* Role Selection */}
-          <View style={{ marginBottom: 15 }}>
-            <Text
-              style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 8 }}
-            >
-              Role
-            </Text>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <TouchableOpacity
-                onPress={() => setNewMemberRole("member")}
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 15,
-                  borderRadius: 8,
-                  backgroundColor:
-                    newMemberRole === "member"
-                      ? COLORS.primary
-                      : COLORS.background,
-                  borderWidth: 1,
-                  borderColor:
-                    newMemberRole === "member" ? COLORS.primary : COLORS.border,
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color:
-                      newMemberRole === "member" ? COLORS.white : COLORS.text,
-                  }}
-                >
-                  Member
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setNewMemberRole("admin")}
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 15,
-                  borderRadius: 8,
-                  backgroundColor:
-                    newMemberRole === "admin"
-                      ? COLORS.primary
-                      : COLORS.background,
-                  borderWidth: 1,
-                  borderColor:
-                    newMemberRole === "admin" ? COLORS.primary : COLORS.border,
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color:
-                      newMemberRole === "admin" ? COLORS.white : COLORS.text,
-                  }}
-                >
-                  Admin
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Action Button */}
-          <TouchableOpacity
-            onPress={handleAddMember}
-            disabled={isAdding}
-            style={{
-              backgroundColor: COLORS.primary,
-              paddingVertical: 12,
-              borderRadius: 8,
-              alignItems: "center",
-              opacity: isAdding ? 0.6 : 1,
-            }}
-          >
-            {isAdding ? (
-              <ActivityIndicator size="small" color={COLORS.white} />
-            ) : (
-              <Text
-                style={{ color: COLORS.white, fontWeight: "600", fontSize: 16 }}
-              >
-                Add Member
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Info Note - UPDATED MESSAGE */}
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1 }}
+        enableOnAndroid={true}
+        extraScrollHeight={20}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* ADD MEMBER FORM */}
+        {showAddMember && isAdmin && (
           <View
             style={{
-              backgroundColor: "#fef3c7",
-              padding: 12,
-              borderRadius: 8,
-              marginTop: 12,
-              flexDirection: "row",
-              alignItems: "flex-start",
+              backgroundColor: COLORS.white,
+              padding: 20,
+              borderBottomWidth: 1,
+              borderBottomColor: COLORS.border,
             }}
           >
-            <Ionicons
-              name="information-circle-outline"
-              size={20}
-              color="#f59e0b"
-            />
             <Text
-              style={{ fontSize: 12, color: "#92400e", marginLeft: 8, flex: 1 }}
-            >
-              You need the user&apos;s email to add them. Users can find their
-              email in their profile settings.
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* MEMBERS LIST */}
-      <FlatList
-        data={members}
-        keyExtractor={(item) => item.user_id}
-        contentContainerStyle={{ padding: 20 }}
-        renderItem={({ item }) => {
-          const isCurrentUser = item.user_id === userId;
-          const isBoardOwner = item.user_id === board.created_by;
-
-          return (
-            <View
               style={{
-                backgroundColor: COLORS.white,
-                padding: 16,
-                borderRadius: 12,
+                fontSize: 16,
+                fontWeight: "bold",
+                color: COLORS.text,
                 marginBottom: 12,
-                borderWidth: 1,
-                borderColor: COLORS.border,
-                shadowColor: COLORS.shadow,
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 4,
-                elevation: 2,
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                {/* Avatar */}
-                <View
+              Add New Member
+            </Text>
+
+            {/* Email Input */}
+            <View style={{ marginBottom: 12 }}>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: COLORS.textLight,
+                  marginBottom: 5,
+                }}
+              >
+                Email Address *
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: COLORS.background,
+                  borderRadius: 8,
+                  paddingHorizontal: 15,
+                  borderWidth: 1,
+                  borderColor: COLORS.border,
+                }}
+              >
+                <Ionicons
+                  name="mail-outline"
+                  size={20}
+                  color={COLORS.textLight}
+                />
+                <TextInput
                   style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 24,
-                    backgroundColor: COLORS.primary,
+                    flex: 1,
+                    paddingVertical: 12,
+                    paddingHorizontal: 10,
+                    fontSize: 14,
+                    color: COLORS.text,
+                  }}
+                  placeholder="Enter user's email"
+                  placeholderTextColor={COLORS.textLight}
+                  value={newMemberEmail}
+                  onChangeText={setNewMemberEmail}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                />
+              </View>
+            </View>
+
+            {/* Role Selection */}
+            <View style={{ marginBottom: 15 }}>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: COLORS.textLight,
+                  marginBottom: 8,
+                }}
+              >
+                Role
+              </Text>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TouchableOpacity
+                  onPress={() => setNewMemberRole("member")}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 15,
+                    borderRadius: 8,
+                    backgroundColor:
+                      newMemberRole === "member"
+                        ? COLORS.primary
+                        : COLORS.background,
+                    borderWidth: 1,
+                    borderColor:
+                      newMemberRole === "member"
+                        ? COLORS.primary
+                        : COLORS.border,
                     alignItems: "center",
-                    justifyContent: "center",
-                    marginRight: 12,
                   }}
                 >
                   <Text
                     style={{
-                      fontSize: 20,
-                      fontWeight: "bold",
-                      color: COLORS.white,
+                      fontSize: 14,
+                      fontWeight: "600",
+                      color:
+                        newMemberRole === "member" ? COLORS.white : COLORS.text,
                     }}
                   >
-                    {item.email.charAt(0).toUpperCase()}
+                    Member
                   </Text>
-                </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setNewMemberRole("admin")}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    paddingHorizontal: 15,
+                    borderRadius: 8,
+                    backgroundColor:
+                      newMemberRole === "admin"
+                        ? COLORS.primary
+                        : COLORS.background,
+                    borderWidth: 1,
+                    borderColor:
+                      newMemberRole === "admin"
+                        ? COLORS.primary
+                        : COLORS.border,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "600",
+                      color:
+                        newMemberRole === "admin" ? COLORS.white : COLORS.text,
+                    }}
+                  >
+                    Admin
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
-                {/* Member Info */}
-                <View style={{ flex: 1 }}>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      marginBottom: 4,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        fontWeight: "600",
-                        color: COLORS.text,
-                      }}
-                    >
-                      {item.email}
-                    </Text>
-                    {isCurrentUser && (
-                      <View
-                        style={{
-                          backgroundColor: COLORS.background,
-                          paddingHorizontal: 8,
-                          paddingVertical: 3,
-                          borderRadius: 4,
-                          marginLeft: 8,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 10,
-                            color: COLORS.text,
-                            fontWeight: "600",
-                          }}
-                        >
-                          YOU
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 10,
-                    }}
-                  >
-                    {/* Role Badge */}
+            {/* Action Button */}
+            <TouchableOpacity
+              onPress={handleAddMember}
+              disabled={isAdding}
+              style={{
+                backgroundColor: COLORS.primary,
+                paddingVertical: 12,
+                borderRadius: 8,
+                alignItems: "center",
+                opacity: isAdding ? 0.6 : 1,
+              }}
+            >
+              {isAdding ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <Text
+                  style={{
+                    color: COLORS.white,
+                    fontWeight: "600",
+                    fontSize: 16,
+                  }}
+                >
+                  Add Member
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Info Note - UPDATED MESSAGE */}
+            <View
+              style={{
+                backgroundColor: "#fef3c7",
+                padding: 12,
+                borderRadius: 8,
+                marginTop: 12,
+                flexDirection: "row",
+                alignItems: "flex-start",
+              }}
+            >
+              <Ionicons
+                name="information-circle-outline"
+                size={20}
+                color="#f59e0b"
+              />
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: "#92400e",
+                  marginLeft: 8,
+                  flex: 1,
+                }}
+              >
+                You need the user&apos;s email to add them. Users can find their
+                email in their profile settings.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* MEMBERS LIST */}
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={members}
+            keyExtractor={(item) => item.user_id}
+            contentContainerStyle={{ padding: 20 }}
+            scrollEnabled={false}
+            renderItem={({ item }) => {
+              const isCurrentUser = item.user_id === userId;
+              const isBoardOwner = item.user_id === board.created_by;
+
+              return (
+                <View
+                  style={{
+                    backgroundColor: COLORS.white,
+                    padding: 16,
+                    borderRadius: 12,
+                    marginBottom: 12,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                    shadowColor: COLORS.shadow,
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 4,
+                    elevation: 2,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    {/* Avatar */}
                     <View
                       style={{
-                        backgroundColor:
-                          item.role === "admin"
-                            ? COLORS.primary
-                            : COLORS.background,
-                        paddingHorizontal: 8,
-                        paddingVertical: 3,
-                        borderRadius: 4,
+                        width: 48,
+                        height: 48,
+                        borderRadius: 24,
+                        backgroundColor: COLORS.primary,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginRight: 12,
                       }}
                     >
                       <Text
                         style={{
-                          fontSize: 12,
-                          color:
-                            item.role === "admin" ? COLORS.white : COLORS.text,
-                          fontWeight: "600",
+                          fontSize: 20,
+                          fontWeight: "bold",
+                          color: COLORS.white,
                         }}
                       >
-                        {item.role.toUpperCase()}
+                        {item.email.charAt(0).toUpperCase()}
                       </Text>
                     </View>
-                    {/* Owner Badge */}
-                    {isBoardOwner && (
+
+                    {/* Member Info */}
+                    <View style={{ flex: 1 }}>
                       <View
                         style={{
-                          backgroundColor: COLORS.boardTitle,
-                          paddingHorizontal: 8,
-                          paddingVertical: 3,
-                          borderRadius: 4,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginBottom: 4,
                         }}
                       >
                         <Text
                           style={{
-                            fontSize: 12,
-                            color: COLORS.white,
+                            fontSize: 16,
                             fontWeight: "600",
+                            color: COLORS.text,
                           }}
                         >
-                          OWNER
+                          {item.email}
                         </Text>
+                        {isCurrentUser && (
+                          <View
+                            style={{
+                              backgroundColor: COLORS.background,
+                              paddingHorizontal: 8,
+                              paddingVertical: 3,
+                              borderRadius: 4,
+                              marginLeft: 8,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 10,
+                                color: COLORS.text,
+                                fontWeight: "600",
+                              }}
+                            >
+                              YOU
+                            </Text>
+                          </View>
+                        )}
                       </View>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
+                        {/* Role Badge */}
+                        <View
+                          style={{
+                            backgroundColor:
+                              item.role === "admin"
+                                ? COLORS.primary
+                                : COLORS.background,
+                            paddingHorizontal: 8,
+                            paddingVertical: 3,
+                            borderRadius: 4,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color:
+                                item.role === "admin"
+                                  ? COLORS.white
+                                  : COLORS.text,
+                              fontWeight: "600",
+                            }}
+                          >
+                            {item.role.toUpperCase()}
+                          </Text>
+                        </View>
+                        {/* Owner Badge */}
+                        {isBoardOwner && (
+                          <View
+                            style={{
+                              backgroundColor: COLORS.boardTitle,
+                              paddingHorizontal: 8,
+                              paddingVertical: 3,
+                              borderRadius: 4,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                color: COLORS.white,
+                                fontWeight: "600",
+                              }}
+                            >
+                              OWNER
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          color: COLORS.textLight,
+                          marginTop: 4,
+                        }}
+                      >
+                        Joined {new Date(item.joined_at).toLocaleDateString()}
+                      </Text>
+                    </View>
+
+                    {/* Remove Button */}
+                    {isAdmin && !isBoardOwner && (
+                      <TouchableOpacity
+                        onPress={() =>
+                          handleRemoveMember(item.user_id, item.email)
+                        }
+                      >
+                        <Ionicons
+                          name="close-circle-outline"
+                          size={28}
+                          color="#ef4444"
+                        />
+                      </TouchableOpacity>
                     )}
                   </View>
-                  <Text
-                    style={{
-                      fontSize: 11,
-                      color: COLORS.textLight,
-                      marginTop: 4,
-                    }}
-                  >
-                    Joined {new Date(item.joined_at).toLocaleDateString()}
-                  </Text>
                 </View>
-
-                {/* Remove Button */}
-                {isAdmin && !isBoardOwner && (
-                  <TouchableOpacity
-                    onPress={() => handleRemoveMember(item.user_id, item.email)}
-                  >
-                    <Ionicons
-                      name="close-circle-outline"
-                      size={28}
-                      color="#ef4444"
-                    />
-                  </TouchableOpacity>
-                )}
+              );
+            }}
+            ListEmptyComponent={
+              <View style={{ alignItems: "center", paddingVertical: 60 }}>
+                <Ionicons
+                  name="people-outline"
+                  size={64}
+                  color={COLORS.textLight}
+                />
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "600",
+                    color: COLORS.text,
+                    marginTop: 16,
+                    textAlign: "center",
+                  }}
+                >
+                  No Members Yet
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: COLORS.textLight,
+                    marginTop: 8,
+                    textAlign: "center",
+                    paddingHorizontal: 40,
+                  }}
+                >
+                  Add members to collaborate on this board
+                </Text>
               </View>
-            </View>
-          );
-        }}
-        ListEmptyComponent={
-          <View style={{ alignItems: "center", paddingVertical: 60 }}>
-            <Ionicons
-              name="people-outline"
-              size={64}
-              color={COLORS.textLight}
-            />
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "600",
-                color: COLORS.text,
-                marginTop: 16,
-                textAlign: "center",
-              }}
-            >
-              No Members Yet
-            </Text>
-            <Text
-              style={{
-                fontSize: 14,
-                color: COLORS.textLight,
-                marginTop: 8,
-                textAlign: "center",
-                paddingHorizontal: 40,
-              }}
-            >
-              Add members to collaborate on this board
-            </Text>
-          </View>
-        }
-      />
+            }
+          />
+        </View>
 
-      {/* USER EMAIL DISPLAY */}
-      <View
-        style={{
-          backgroundColor: COLORS.white,
-          padding: 20,
-          borderTopWidth: 1,
-          borderTopColor: COLORS.border,
-        }}
-      >
-        <Text
-          style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 5 }}
-        >
-          Your Email (share this to be added to boards)
-        </Text>
+        {/* USER EMAIL DISPLAY */}
         <View
           style={{
-            backgroundColor: COLORS.background,
-            padding: 12,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: COLORS.border,
+            backgroundColor: COLORS.white,
+            padding: 20,
+            borderTopWidth: 1,
+            borderTopColor: COLORS.border,
           }}
         >
           <Text
-            style={{
-              fontSize: 14,
-              color: COLORS.text,
-              fontWeight: "500",
-            }}
-            selectable
+            style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 5 }}
           >
-            {user?.emailAddresses[0]?.emailAddress || "Not available"}
+            Your Email (share this to be added to boards)
           </Text>
+          <View
+            style={{
+              backgroundColor: COLORS.background,
+              padding: 12,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: COLORS.border,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 14,
+                color: COLORS.text,
+                fontWeight: "500",
+              }}
+              selectable
+            >
+              {user?.emailAddresses[0]?.emailAddress || "Not available"}
+            </Text>
+          </View>
         </View>
-      </View>
+      </KeyboardAwareScrollView>
     </View>
   );
 }

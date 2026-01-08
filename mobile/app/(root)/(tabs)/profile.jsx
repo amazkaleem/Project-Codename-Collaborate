@@ -2,12 +2,12 @@ import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
   ActivityIndicator,
   Alert,
   TextInput,
+  RefreshControl,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useUser } from "@clerk/clerk-expo";
 import { useState, useEffect } from "react";
 import { useBoards } from "@/hooks/useBoards";
@@ -19,7 +19,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { updateUser, deleteUser, getUserByClerkId } from "@/services/api";
 
 export default function ProfileScreen() {
-  const router = useRouter();
   const { user, isLoaded } = useUser();
   const userId = user?.id;
   const { currentTheme, colors: COLORS, changeTheme } = useTheme();
@@ -29,6 +28,7 @@ export default function ProfileScreen() {
   const [fullName, setFullName] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [dbUsername, setDbUsername] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
   const { boards, loadData: loadBoards } = useBoards(userId);
   const { tasks, loadData: loadTasks } = useTasks(userId);
@@ -74,6 +74,33 @@ export default function ProfileScreen() {
 
     loadUserData();
   }, [user, userId]);
+
+  // Refresh handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      // Reload all profile data
+      await Promise.all([loadBoards(), loadTasks()]);
+
+      // Reload username
+      if (userId) {
+        try {
+          const dbUser = await getUserByClerkId(userId);
+          if (dbUser && dbUser.username) {
+            setDbUsername(dbUser.username);
+            setUsername(dbUser.username);
+            setFullName(dbUser.full_name || user.fullName || "");
+          }
+        } catch (error) {
+          console.error("Error reloading username:", error);
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing profile data:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Calculate stats
   const totalBoards = boards?.length || 0;
@@ -177,7 +204,14 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: COLORS.background }}>
+    <KeyboardAwareScrollView
+      style={{ flex: 1, backgroundColor: COLORS.background }}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+      enableOnAndroid={true}
+      extraScrollHeight={20}
+    >
       {/* HEADER */}
       <View
         style={{
@@ -711,6 +745,6 @@ export default function ProfileScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }

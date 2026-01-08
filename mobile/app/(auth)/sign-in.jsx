@@ -11,6 +11,7 @@ import {
 import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/contexts/ThemeContext";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 export default function SignInScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
@@ -67,189 +68,206 @@ export default function SignInScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.background }}>
-      <View
-        style={{ flex: 1, justifyContent: "center", paddingHorizontal: 24 }}
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1 }}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={20}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Logo/Icon Section */}
-        <View style={{ alignItems: "center", marginBottom: 48 }}>
-          <View
-            style={{
-              width: 80,
-              height: 80,
-              borderRadius: 40,
-              backgroundColor: COLORS.primary,
-              justifyContent: "center",
-              alignItems: "center",
-              marginBottom: 16,
-            }}
-          >
-            <Ionicons name="checkmark-done" size={40} color={COLORS.white} />
-          </View>
-          <Text
-            style={{
-              fontSize: 32,
-              fontWeight: "700",
-              color: COLORS.text,
-              marginBottom: 8,
-            }}
-          >
-            Welcome Back
-          </Text>
-          <Text
-            style={{
-              fontSize: 16,
-              color: COLORS.textLight,
-              textAlign: "center",
-            }}
-          >
-            Sign in to continue managing your tasks
-          </Text>
-        </View>
-
-        {/* Email Input */}
-        <View style={{ marginBottom: 16 }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: COLORS.text,
-              marginBottom: 8,
-            }}
-          >
-            Email Address
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: COLORS.white,
-              borderRadius: 12,
-              paddingHorizontal: 16,
-              borderWidth: 1,
-              borderColor: COLORS.border,
-            }}
-          >
-            <Ionicons name="mail-outline" size={20} color={COLORS.textLight} />
-            <TextInput
-              autoCapitalize="none"
-              value={emailAddress}
-              placeholder="Enter your email"
-              placeholderTextColor={COLORS.textLight}
-              onChangeText={(emailAddress) => setEmailAddress(emailAddress)}
-              keyboardType="email-address"
+        <View
+          style={{ flex: 1, justifyContent: "center", paddingHorizontal: 24 }}
+        >
+          {/* Logo/Icon Section */}
+          <View style={{ alignItems: "center", marginBottom: 48 }}>
+            <View
               style={{
-                flex: 1,
-                paddingVertical: 16,
-                paddingHorizontal: 12,
-                fontSize: 16,
-                color: COLORS.text,
+                width: 80,
+                height: 80,
+                borderRadius: 40,
+                backgroundColor: COLORS.primary,
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: 16,
               }}
-            />
-          </View>
-        </View>
-
-        {/* Password Input */}
-        <View style={{ marginBottom: 24 }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: COLORS.text,
-              marginBottom: 8,
-            }}
-          >
-            Password
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: COLORS.white,
-              borderRadius: 12,
-              paddingHorizontal: 16,
-              borderWidth: 1,
-              borderColor: COLORS.border,
-            }}
-          >
-            <Ionicons
-              name="lock-closed-outline"
-              size={20}
-              color={COLORS.textLight}
-            />
-            <TextInput
-              value={password}
-              placeholder="Enter your password"
-              placeholderTextColor={COLORS.textLight}
-              secureTextEntry={!showPassword}
-              onChangeText={(password) => setPassword(password)}
+            >
+              <Ionicons name="checkmark-done" size={40} color={COLORS.white} />
+            </View>
+            <Text
               style={{
-                flex: 1,
-                paddingVertical: 16,
-                paddingHorizontal: 12,
-                fontSize: 16,
+                fontSize: 32,
+                fontWeight: "700",
                 color: COLORS.text,
+                marginBottom: 8,
               }}
-            />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+            >
+              Welcome to AXIA
+            </Text>
+            <Text
+              style={{
+                fontSize: 16,
+                color: COLORS.textLight,
+                textAlign: "center",
+              }}
+            >
+              Sign in to continue managing your tasks
+            </Text>
+          </View>
+
+          {/* Email Input */}
+          <View style={{ marginBottom: 16 }}>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: COLORS.text,
+                marginBottom: 8,
+              }}
+            >
+              Email Address
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: COLORS.white,
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                borderWidth: 1,
+                borderColor: COLORS.border,
+              }}
+            >
               <Ionicons
-                name={showPassword ? "eye-outline" : "eye-off-outline"}
+                name="mail-outline"
                 size={20}
                 color={COLORS.textLight}
               />
-            </TouchableOpacity>
+              <TextInput
+                autoCapitalize="none"
+                value={emailAddress}
+                placeholder="Enter your email"
+                placeholderTextColor={COLORS.textLight}
+                onChangeText={(emailAddress) => setEmailAddress(emailAddress)}
+                keyboardType="email-address"
+                style={{
+                  flex: 1,
+                  paddingVertical: 16,
+                  paddingHorizontal: 12,
+                  fontSize: 16,
+                  color: COLORS.text,
+                }}
+              />
+            </View>
           </View>
-        </View>
 
-        {/* Sign In Button */}
-        <TouchableOpacity
-          onPress={onSignInPress}
-          disabled={loading}
-          style={{
-            backgroundColor: COLORS.primary,
-            borderRadius: 12,
-            paddingVertical: 16,
-            alignItems: "center",
-            marginBottom: 16,
-            opacity: loading ? 0.6 : 1,
-          }}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color={COLORS.white} />
-          ) : (
+          {/* Password Input */}
+          <View style={{ marginBottom: 24 }}>
             <Text
-              style={{ fontSize: 16, fontWeight: "700", color: COLORS.white }}
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: COLORS.text,
+                marginBottom: 8,
+              }}
             >
-              Sign In
+              Password
             </Text>
-          )}
-        </TouchableOpacity>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: COLORS.white,
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                borderWidth: 1,
+                borderColor: COLORS.border,
+              }}
+            >
+              <Ionicons
+                name="lock-closed-outline"
+                size={20}
+                color={COLORS.textLight}
+              />
+              <TextInput
+                value={password}
+                placeholder="Enter your password"
+                placeholderTextColor={COLORS.textLight}
+                secureTextEntry={!showPassword}
+                onChangeText={(password) => setPassword(password)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 16,
+                  paddingHorizontal: 12,
+                  fontSize: 16,
+                  color: COLORS.text,
+                }}
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons
+                  name={showPassword ? "eye-outline" : "eye-off-outline"}
+                  size={20}
+                  color={COLORS.textLight}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
 
-        {/* Sign Up Link */}
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ fontSize: 14, color: COLORS.textLight }}>
-            Don&apos;t have an account?{" "}
-          </Text>
-          <Link href="/(auth)/sign-up" asChild>
-            <TouchableOpacity>
+          {/* Sign In Button */}
+          <TouchableOpacity
+            onPress={onSignInPress}
+            disabled={loading}
+            style={{
+              backgroundColor: COLORS.primary,
+              borderRadius: 12,
+              paddingVertical: 16,
+              alignItems: "center",
+              marginBottom: 16,
+              opacity: loading ? 0.6 : 1,
+            }}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color={COLORS.white} />
+            ) : (
               <Text
                 style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: COLORS.primary,
+                  fontSize: 16,
+                  fontWeight: "700",
+                  color: COLORS.white,
                 }}
               >
-                Sign Up
+                Sign In
               </Text>
-            </TouchableOpacity>
-          </Link>
+            )}
+          </TouchableOpacity>
+
+          {/* Sign Up Link */}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ fontSize: 14, color: COLORS.textLight }}>
+              Don&apos;t have an account?{" "}
+            </Text>
+            <Link href="/(auth)/sign-up" asChild>
+              <TouchableOpacity>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: COLORS.primary,
+                  }}
+                >
+                  Sign Up
+                </Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
         </View>
-      </View>
+      </KeyboardAwareScrollView>
     </View>
   );
 }

@@ -17,6 +17,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { getUserByClerkId } from "@/services/api";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -76,8 +77,26 @@ export default function HomeScreen() {
   // Refresh handler
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadBoards(), loadTasks()]);
-    setRefreshing(false);
+    try {
+      // Reload boards and tasks
+      await Promise.all([loadBoards(), loadTasks()]);
+
+      // Reload username from database
+      if (userId) {
+        try {
+          const dbUser = await getUserByClerkId(userId);
+          if (dbUser && dbUser.username) {
+            setDbUsername(dbUser.username);
+          }
+        } catch (error) {
+          console.error("Error reloading username:", error);
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing home data:", error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // Handle create board
@@ -524,173 +543,189 @@ export default function HomeScreen() {
               maxHeight: "80%",
             }}
           >
-            {/* Modal Header */}
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 20,
-              }}
+            <KeyboardAwareScrollView
+              enableOnAndroid={true}
+              enableAutomaticScroll={true}
+              extraScrollHeight={20}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
-              <Text
-                style={{ fontSize: 20, fontWeight: "bold", color: COLORS.text }}
-              >
-                Create New Board
-              </Text>
-              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
-                <Ionicons name="close" size={28} color={COLORS.textLight} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Board Name Input */}
-            <View style={{ marginBottom: 20 }}>
-              <Text
-                style={{
-                  fontSize: 14,
-                  color: COLORS.text,
-                  marginBottom: 8,
-                  fontWeight: "600",
-                }}
-              >
-                Board Name *
-              </Text>
+              {/* Modal Header */}
               <View
                 style={{
                   flexDirection: "row",
+                  justifyContent: "space-between",
                   alignItems: "center",
-                  backgroundColor: COLORS.background,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: COLORS.border,
-                  paddingHorizontal: 15,
-                }}
-              >
-                <Ionicons
-                  name="clipboard-outline"
-                  size={20}
-                  color={COLORS.textLight}
-                />
-                <TextInput
-                  style={{
-                    flex: 1,
-                    paddingVertical: 15,
-                    paddingHorizontal: 10,
-                    fontSize: 16,
-                    color: COLORS.text,
-                  }}
-                  placeholder="Enter board name"
-                  placeholderTextColor={COLORS.textLight}
-                  value={newBoardName}
-                  onChangeText={setNewBoardName}
-                  maxLength={100}
-                  autoFocus
-                />
-              </View>
-              <Text
-                style={{ fontSize: 12, color: COLORS.textLight, marginTop: 5 }}
-              >
-                {newBoardName.length}/100 characters
-              </Text>
-            </View>
-
-            {/* Description Input */}
-            <View style={{ marginBottom: 20 }}>
-              <Text
-                style={{
-                  fontSize: 14,
-                  color: COLORS.text,
-                  marginBottom: 8,
-                  fontWeight: "600",
-                }}
-              >
-                Description (Optional)
-              </Text>
-              <View
-                style={{
-                  backgroundColor: COLORS.background,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: COLORS.border,
-                  paddingHorizontal: 15,
-                  paddingVertical: 10,
-                }}
-              >
-                <TextInput
-                  style={{
-                    fontSize: 16,
-                    color: COLORS.text,
-                    minHeight: 100,
-                    textAlignVertical: "top",
-                  }}
-                  placeholder="Add a description for this board..."
-                  placeholderTextColor={COLORS.textLight}
-                  value={newBoardDescription}
-                  onChangeText={setNewBoardDescription}
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
-            </View>
-
-            {/* Action Buttons */}
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <TouchableOpacity
-                onPress={() => {
-                  setNewBoardName("");
-                  setNewBoardDescription("");
-                  setShowCreateModal(false);
-                }}
-                style={{
-                  flex: 1,
-                  backgroundColor: COLORS.background,
-                  paddingVertical: 15,
-                  borderRadius: 8,
-                  alignItems: "center",
-                  borderWidth: 1,
-                  borderColor: COLORS.border,
+                  marginBottom: 20,
                 }}
               >
                 <Text
                   style={{
+                    fontSize: 20,
+                    fontWeight: "bold",
                     color: COLORS.text,
-                    fontWeight: "600",
-                    fontSize: 16,
                   }}
                 >
-                  Cancel
+                  Create New Board
                 </Text>
-              </TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+                  <Ionicons name="close" size={28} color={COLORS.textLight} />
+                </TouchableOpacity>
+              </View>
 
-              <TouchableOpacity
-                onPress={handleCreateBoard}
-                disabled={isCreating || !newBoardName.trim()}
-                style={{
-                  flex: 1,
-                  backgroundColor: !newBoardName.trim()
-                    ? COLORS.textLight
-                    : COLORS.primary,
-                  paddingVertical: 15,
-                  borderRadius: 8,
-                  alignItems: "center",
-                  opacity: isCreating ? 0.6 : 1,
-                }}
-              >
-                {isCreating ? (
-                  <ActivityIndicator size="small" color={COLORS.white} />
-                ) : (
+              {/* Board Name Input */}
+              <View style={{ marginBottom: 20 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: COLORS.text,
+                    marginBottom: 8,
+                    fontWeight: "600",
+                  }}
+                >
+                  Board Name *
+                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: COLORS.background,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                    paddingHorizontal: 15,
+                  }}
+                >
+                  <Ionicons
+                    name="clipboard-outline"
+                    size={20}
+                    color={COLORS.textLight}
+                  />
+                  <TextInput
+                    style={{
+                      flex: 1,
+                      paddingVertical: 15,
+                      paddingHorizontal: 10,
+                      fontSize: 16,
+                      color: COLORS.text,
+                    }}
+                    placeholder="Enter board name"
+                    placeholderTextColor={COLORS.textLight}
+                    value={newBoardName}
+                    onChangeText={setNewBoardName}
+                    maxLength={100}
+                    autoFocus
+                  />
+                </View>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: COLORS.textLight,
+                    marginTop: 5,
+                  }}
+                >
+                  {newBoardName.length}/100 characters
+                </Text>
+              </View>
+
+              {/* Description Input */}
+              <View style={{ marginBottom: 20 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: COLORS.text,
+                    marginBottom: 8,
+                    fontWeight: "600",
+                  }}
+                >
+                  Description (Optional)
+                </Text>
+                <View
+                  style={{
+                    backgroundColor: COLORS.background,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                    paddingHorizontal: 15,
+                    paddingVertical: 10,
+                  }}
+                >
+                  <TextInput
+                    style={{
+                      fontSize: 16,
+                      color: COLORS.text,
+                      minHeight: 100,
+                      textAlignVertical: "top",
+                    }}
+                    placeholder="Add a description for this board..."
+                    placeholderTextColor={COLORS.textLight}
+                    value={newBoardDescription}
+                    onChangeText={setNewBoardDescription}
+                    multiline
+                    numberOfLines={4}
+                  />
+                </View>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setNewBoardName("");
+                    setNewBoardDescription("");
+                    setShowCreateModal(false);
+                  }}
+                  style={{
+                    flex: 1,
+                    backgroundColor: COLORS.background,
+                    paddingVertical: 15,
+                    borderRadius: 8,
+                    alignItems: "center",
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                  }}
+                >
                   <Text
                     style={{
-                      color: COLORS.white,
+                      color: COLORS.text,
                       fontWeight: "600",
                       fontSize: 16,
                     }}
                   >
-                    Create Board
+                    Cancel
                   </Text>
-                )}
-              </TouchableOpacity>
-            </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleCreateBoard}
+                  disabled={isCreating || !newBoardName.trim()}
+                  style={{
+                    flex: 1,
+                    backgroundColor: !newBoardName.trim()
+                      ? COLORS.textLight
+                      : COLORS.primary,
+                    paddingVertical: 15,
+                    borderRadius: 8,
+                    alignItems: "center",
+                    opacity: isCreating ? 0.6 : 1,
+                  }}
+                >
+                  {isCreating ? (
+                    <ActivityIndicator size="small" color={COLORS.white} />
+                  ) : (
+                    <Text
+                      style={{
+                        color: COLORS.white,
+                        fontWeight: "600",
+                        fontSize: 16,
+                      }}
+                    >
+                      Create Board
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </KeyboardAwareScrollView>
           </View>
         </View>
       </Modal>

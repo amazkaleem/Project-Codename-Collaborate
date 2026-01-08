@@ -22,7 +22,7 @@ export const useUserProfile = (clerkUser) => {
       if (!user) {
         console.log("Creating new user in database");
         user = await createUser({
-          user_id: clerkUser.id,
+          userId: clerkUser.id,
           email: clerkUser.emailAddresses[0]?.emailAddress,
           username:
             clerkUser.username ||

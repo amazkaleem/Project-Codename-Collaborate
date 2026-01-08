@@ -62,9 +62,23 @@ export const deleteUser = async (userId) => {
 };
 
 export const getUserByClerkId = async (userId) => {
-  return apiRequest(`users/${userId}`, {
-    method: "GET",
-  });
+  try {
+    return await apiRequest(`users/${userId}`, {
+      method: "GET",
+    });
+  } catch (err) {
+    // Return null on 404 (user doesn't exist yet) instead of throwing
+    const msg = err?.message || "";
+    if (
+      msg === "User not found" ||
+      msg.includes("404") ||
+      msg.includes("Not Found")
+    ) {
+      console.log("ℹ️  User not found in DB (will be created):", userId);
+      return null;
+    }
+    throw err; // Re-throw other errors
+  }
 };
 
 // ==================== BOARD ENDPOINTS ====================
@@ -112,6 +126,15 @@ export const getBoardMembers = async (boardId) => {
   return apiRequest(`boards/${boardId}/members`, {
     method: "GET",
   });
+};
+
+export const searchBoardsByName = async (boardName) => {
+  return apiRequest(
+    `boards/search?boardName=${encodeURIComponent(boardName)}`,
+    {
+      method: "GET",
+    }
+  );
 };
 
 // ==================== TASK ENDPOINTS ====================

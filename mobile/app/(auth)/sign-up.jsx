@@ -11,6 +11,8 @@ import { useSignUp } from "@clerk/clerk-expo";
 import { Link, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/contexts/ThemeContext";
+import { createUser } from "@/services/api";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 export default function SignUpScreen() {
   const { isLoaded, signUp, setActive } = useSignUp();
@@ -89,6 +91,45 @@ export default function SignUpScreen() {
       if (signUpAttempt.status === "complete") {
         await setActive({ session: signUpAttempt.createdSessionId });
         router.replace("/(root)/(tabs)/home");
+        // Get the user ID from Clerk
+        const clerkUserId = signUpAttempt.createdUserId;
+
+        console.log("✅ Clerk sign-up complete. User ID:", clerkUserId);
+        console.log("📝 Creating user in database...");
+
+        // Create user in your database
+        try {
+          const username = emailAddress.split("@")[0]; // Extract username from email
+          const fullName = username; // You can prompt for this separately if needed
+
+          await createUser({
+            userId: clerkUserId, //Clerk's provided userId
+            username: username,
+            email: emailAddress,
+            password_hash: password, // Clerk manages the password
+            full_name: fullName,
+          });
+
+          console.log("✅ User created in database successfully");
+
+          // Redirect to home
+          router.replace("/(root)/(tabs)/home");
+        } catch (dbError) {
+          console.error("❌ Error creating user in database:", dbError);
+
+          // Even if database creation fails, the user is authenticated in Clerk
+          // Show a warning but still redirect
+          Alert.alert(
+            "Warning",
+            "Account created but there was an issue setting up your profile. Please contact support if you experience issues.",
+            [
+              {
+                text: "OK",
+                onPress: () => router.replace("/(root)/(tabs)/home"),
+              },
+            ]
+          );
+        }
       } else {
         // If the status is not complete, check why. User may need to
         // complete further steps.
@@ -112,10 +153,164 @@ export default function SignUpScreen() {
   if (pendingVerification) {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+        <KeyboardAwareScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ flexGrow: 1 }}
+          enableOnAndroid={true}
+          enableAutomaticScroll={true}
+          extraScrollHeight={20}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View
+            style={{ flex: 1, justifyContent: "center", paddingHorizontal: 24 }}
+          >
+            {/* Header */}
+            <View style={{ alignItems: "center", marginBottom: 48 }}>
+              <View
+                style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: 40,
+                  backgroundColor: COLORS.primary,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginBottom: 16,
+                }}
+              >
+                <Ionicons name="mail-outline" size={40} color={COLORS.white} />
+              </View>
+              <Text
+                style={{
+                  fontSize: 32,
+                  fontWeight: "700",
+                  color: COLORS.text,
+                  marginBottom: 8,
+                }}
+              >
+                Verify Your Email
+              </Text>
+              <Text
+                style={{
+                  fontSize: 16,
+                  color: COLORS.textLight,
+                  textAlign: "center",
+                  paddingHorizontal: 20,
+                }}
+              >
+                We&apos;ve sent a verification code to{"\n"}
+                <Text style={{ fontWeight: "600", color: COLORS.text }}>
+                  {emailAddress}
+                </Text>
+              </Text>
+            </View>
+
+            {/* Verification Code Input */}
+            <View style={{ marginBottom: 24 }}>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: COLORS.text,
+                  marginBottom: 8,
+                }}
+              >
+                Verification Code
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: COLORS.white,
+                  borderRadius: 12,
+                  paddingHorizontal: 16,
+                  borderWidth: 1,
+                  borderColor: COLORS.border,
+                }}
+              >
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={20}
+                  color={COLORS.textLight}
+                />
+                <TextInput
+                  value={code}
+                  placeholder="Enter 6-digit code"
+                  placeholderTextColor={COLORS.textLight}
+                  onChangeText={(code) => setCode(code)}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 16,
+                    paddingHorizontal: 12,
+                    fontSize: 16,
+                    color: COLORS.text,
+                    letterSpacing: 4,
+                  }}
+                />
+              </View>
+            </View>
+
+            {/* Verify Button */}
+            <TouchableOpacity
+              onPress={onVerifyPress}
+              disabled={loading}
+              style={{
+                backgroundColor: COLORS.primary,
+                borderRadius: 12,
+                paddingVertical: 16,
+                alignItems: "center",
+                marginBottom: 16,
+                opacity: loading ? 0.6 : 1,
+              }}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "700",
+                    color: COLORS.white,
+                  }}
+                >
+                  Verify Email
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Resend Code */}
+            <TouchableOpacity
+              onPress={onSignUpPress}
+              style={{ alignItems: "center" }}
+            >
+              <Text style={{ fontSize: 14, color: COLORS.textLight }}>
+                Didn&apos;t receive the code?{" "}
+                <Text style={{ fontWeight: "600", color: COLORS.primary }}>
+                  Resend
+                </Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAwareScrollView>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1 }}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={20}
+        keyboardShouldPersistTaps="handled"
+      >
         <View
           style={{ flex: 1, justifyContent: "center", paddingHorizontal: 24 }}
         >
-          {/* Header */}
+          {/* Logo/Icon Section */}
           <View style={{ alignItems: "center", marginBottom: 48 }}>
             <View
               style={{
@@ -128,7 +323,7 @@ export default function SignUpScreen() {
                 marginBottom: 16,
               }}
             >
-              <Ionicons name="mail-outline" size={40} color={COLORS.white} />
+              <Ionicons name="person-add" size={40} color={COLORS.white} />
             </View>
             <Text
               style={{
@@ -138,25 +333,21 @@ export default function SignUpScreen() {
                 marginBottom: 8,
               }}
             >
-              Verify Your Email
+              Create Account
             </Text>
             <Text
               style={{
                 fontSize: 16,
                 color: COLORS.textLight,
                 textAlign: "center",
-                paddingHorizontal: 20,
               }}
             >
-              We&apos;ve sent a verification code to{"\n"}
-              <Text style={{ fontWeight: "600", color: COLORS.text }}>
-                {emailAddress}
-              </Text>
+              Sign up to start managing your tasks
             </Text>
           </View>
 
-          {/* Verification Code Input */}
-          <View style={{ marginBottom: 24 }}>
+          {/* Email Input */}
+          <View style={{ marginBottom: 16 }}>
             <Text
               style={{
                 fontSize: 14,
@@ -165,7 +356,7 @@ export default function SignUpScreen() {
                 marginBottom: 8,
               }}
             >
-              Verification Code
+              Email Address
             </Text>
             <View
               style={{
@@ -179,32 +370,94 @@ export default function SignUpScreen() {
               }}
             >
               <Ionicons
-                name="shield-checkmark-outline"
+                name="mail-outline"
                 size={20}
                 color={COLORS.textLight}
               />
               <TextInput
-                value={code}
-                placeholder="Enter 6-digit code"
+                autoCapitalize="none"
+                value={emailAddress}
+                placeholder="Enter your email"
                 placeholderTextColor={COLORS.textLight}
-                onChangeText={(code) => setCode(code)}
-                keyboardType="number-pad"
-                maxLength={6}
+                onChangeText={(email) => setEmailAddress(email)}
+                keyboardType="email-address"
                 style={{
                   flex: 1,
                   paddingVertical: 16,
                   paddingHorizontal: 12,
                   fontSize: 16,
                   color: COLORS.text,
-                  letterSpacing: 4,
                 }}
               />
             </View>
           </View>
 
-          {/* Verify Button */}
+          {/* Password Input */}
+          <View style={{ marginBottom: 8 }}>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: COLORS.text,
+                marginBottom: 8,
+              }}
+            >
+              Password
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: COLORS.white,
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                borderWidth: 1,
+                borderColor: COLORS.border,
+              }}
+            >
+              <Ionicons
+                name="lock-closed-outline"
+                size={20}
+                color={COLORS.textLight}
+              />
+              <TextInput
+                value={password}
+                placeholder="Enter your password"
+                placeholderTextColor={COLORS.textLight}
+                secureTextEntry={!showPassword}
+                onChangeText={(password) => setPassword(password)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 16,
+                  paddingHorizontal: 12,
+                  fontSize: 16,
+                  color: COLORS.text,
+                }}
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons
+                  name={showPassword ? "eye-outline" : "eye-off-outline"}
+                  size={20}
+                  color={COLORS.textLight}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Password Hint */}
+          <Text
+            style={{
+              fontSize: 12,
+              color: COLORS.textLight,
+              marginBottom: 24,
+            }}
+          >
+            Password must be at least 8 characters long
+          </Text>
+
+          {/* Sign Up Button */}
           <TouchableOpacity
-            onPress={onVerifyPress}
+            onPress={onSignUpPress}
             disabled={loading}
             style={{
               backgroundColor: COLORS.primary,
@@ -219,222 +472,44 @@ export default function SignUpScreen() {
               <ActivityIndicator size="small" color={COLORS.white} />
             ) : (
               <Text
-                style={{ fontSize: 16, fontWeight: "700", color: COLORS.white }}
+                style={{
+                  fontSize: 16,
+                  fontWeight: "700",
+                  color: COLORS.white,
+                }}
               >
-                Verify Email
+                Create Account
               </Text>
             )}
           </TouchableOpacity>
 
-          {/* Resend Code */}
-          <TouchableOpacity
-            onPress={onSignUpPress}
-            style={{ alignItems: "center" }}
-          >
-            <Text style={{ fontSize: 14, color: COLORS.textLight }}>
-              Didn&apos;t receive the code?{" "}
-              <Text style={{ fontWeight: "600", color: COLORS.primary }}>
-                Resend
-              </Text>
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
-      <View
-        style={{ flex: 1, justifyContent: "center", paddingHorizontal: 24 }}
-      >
-        {/* Logo/Icon Section */}
-        <View style={{ alignItems: "center", marginBottom: 48 }}>
+          {/* Sign In Link */}
           <View
             style={{
-              width: 80,
-              height: 80,
-              borderRadius: 40,
-              backgroundColor: COLORS.primary,
+              flexDirection: "row",
               justifyContent: "center",
               alignItems: "center",
-              marginBottom: 16,
             }}
           >
-            <Ionicons name="person-add" size={40} color={COLORS.white} />
-          </View>
-          <Text
-            style={{
-              fontSize: 32,
-              fontWeight: "700",
-              color: COLORS.text,
-              marginBottom: 8,
-            }}
-          >
-            Create Account
-          </Text>
-          <Text
-            style={{
-              fontSize: 16,
-              color: COLORS.textLight,
-              textAlign: "center",
-            }}
-          >
-            Sign up to start managing your tasks
-          </Text>
-        </View>
-
-        {/* Email Input */}
-        <View style={{ marginBottom: 16 }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: COLORS.text,
-              marginBottom: 8,
-            }}
-          >
-            Email Address
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: COLORS.white,
-              borderRadius: 12,
-              paddingHorizontal: 16,
-              borderWidth: 1,
-              borderColor: COLORS.border,
-            }}
-          >
-            <Ionicons name="mail-outline" size={20} color={COLORS.textLight} />
-            <TextInput
-              autoCapitalize="none"
-              value={emailAddress}
-              placeholder="Enter your email"
-              placeholderTextColor={COLORS.textLight}
-              onChangeText={(email) => setEmailAddress(email)}
-              keyboardType="email-address"
-              style={{
-                flex: 1,
-                paddingVertical: 16,
-                paddingHorizontal: 12,
-                fontSize: 16,
-                color: COLORS.text,
-              }}
-            />
-          </View>
-        </View>
-
-        {/* Password Input */}
-        <View style={{ marginBottom: 8 }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: COLORS.text,
-              marginBottom: 8,
-            }}
-          >
-            Password
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: COLORS.white,
-              borderRadius: 12,
-              paddingHorizontal: 16,
-              borderWidth: 1,
-              borderColor: COLORS.border,
-            }}
-          >
-            <Ionicons
-              name="lock-closed-outline"
-              size={20}
-              color={COLORS.textLight}
-            />
-            <TextInput
-              value={password}
-              placeholder="Enter your password"
-              placeholderTextColor={COLORS.textLight}
-              secureTextEntry={!showPassword}
-              onChangeText={(password) => setPassword(password)}
-              style={{
-                flex: 1,
-                paddingVertical: 16,
-                paddingHorizontal: 12,
-                fontSize: 16,
-                color: COLORS.text,
-              }}
-            />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              <Ionicons
-                name={showPassword ? "eye-outline" : "eye-off-outline"}
-                size={20}
-                color={COLORS.textLight}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Password Hint */}
-        <Text
-          style={{ fontSize: 12, color: COLORS.textLight, marginBottom: 24 }}
-        >
-          Password must be at least 8 characters long
-        </Text>
-
-        {/* Sign Up Button */}
-        <TouchableOpacity
-          onPress={onSignUpPress}
-          disabled={loading}
-          style={{
-            backgroundColor: COLORS.primary,
-            borderRadius: 12,
-            paddingVertical: 16,
-            alignItems: "center",
-            marginBottom: 16,
-            opacity: loading ? 0.6 : 1,
-          }}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color={COLORS.white} />
-          ) : (
-            <Text
-              style={{ fontSize: 16, fontWeight: "700", color: COLORS.white }}
-            >
-              Create Account
+            <Text style={{ fontSize: 14, color: COLORS.textLight }}>
+              Already have an account?{" "}
             </Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Sign In Link */}
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ fontSize: 14, color: COLORS.textLight }}>
-            Already have an account?{" "}
-          </Text>
-          <Link href="/(auth)/sign-in" asChild>
-            <TouchableOpacity>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: COLORS.primary,
-                }}
-              >
-                Sign In
-              </Text>
-            </TouchableOpacity>
-          </Link>
+            <Link href="/(auth)/sign-in" asChild>
+              <TouchableOpacity>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: COLORS.primary,
+                  }}
+                >
+                  Sign In
+                </Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
         </View>
-      </View>
+      </KeyboardAwareScrollView>
     </View>
   );
 }
